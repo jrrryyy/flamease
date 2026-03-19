@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp"
+    android:gravity="center">
+
+    <androidx.cardview.widget.CardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        app:cardCornerRadius="15dp"
+        app:cardElevation="4dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:padding="24dp"
+            android:orientation="vertical">
+
+            <ImageView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_gravity="center"
+                android:src="@drawable/accepted"
+                android:contentDescription="Accepted Icon" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ROOM REQUEST FORM"
+                android:layout_gravity="center"
+                android:textStyle="bold"
+                android:textSize="18sp"
+                android:textColor="#000000"
+                android:layout_marginTop="12dp"/>
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="For Registrar to accept"
+                android:layout_gravity="center"
+                android:textSize="12sp"
+                android:textColor="#888888"/>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#EEEEEE"
+                android:layout_marginVertical="16dp"/>
+
+            <GridLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:columnCount="2"
+                android:useDefaultMargins="true">
+
+                <!-- BUILDING -->
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:layout_columnWeight="1">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="BUILDING"
+                        android:textSize="10sp"
+                        android:textColor="#888888"/>
+                    <TextView
+                        android:id="@+id/tvPopupBuilding"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:textColor="#000000"
+                        tools:text="PTC"/>
+                </LinearLayout>
+
+                <!-- DATE -->
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:layout_columnWeight="1">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="DATE"
+                        android:textSize="10sp"
+                        android:textColor="#888888"/>
+                    <TextView
+                        android:id="@+id/tvPopupDate"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:textColor="#000000"
+                        tools:text="Feb 2, 2026"/>
+                </LinearLayout>
+
+                <!-- ROOM -->
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:layout_columnWeight="1"
+                    android:layout_marginTop="12dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="ROOM"
+                        android:textSize="10sp"
+                        android:textColor="#888888"/>
+                    <TextView
+                        android:id="@+id/tvPopupRoom"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:textColor="#000000"
+                        tools:text="303"/>
+                </LinearLayout>
+
+                <!-- TIME SLOT -->
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:layout_columnWeight="1"
+                    android:layout_marginTop="12dp">
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="TIME SLOT"
+                        android:textSize="10sp"
+                        android:textColor="#888888"/>
+                    <TextView
+                        android:id="@+id/tvPopupTimeSlot"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textStyle="bold"
+                        android:textColor="#000000"
+                        tools:text="1:30 PM - 3:00 PM"/>
+                </LinearLayout>
+            </GridLayout>
+
+            <!-- BLOCK -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="BLOCK"
+                android:textSize="10sp"
+                android:textColor="#888888"
+                android:layout_marginTop="16dp"/>
+            <TextView
+                android:id="@+id/tvPopupBlock"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textColor="#000000"
+                tools:text="BSIT2-09"/>
+
+            <!-- DESCRIPTION -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="DESCRIPTION"
+                android:textSize="10sp"
+                android:textColor="#888888"
+                android:layout_marginTop="16dp"/>
+            <TextView
+                android:id="@+id/tvPopupDescription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="#888888"
+                android:textSize="13sp"
+                tools:text="Requesting for project meeting..."/>
+
+        </LinearLayout>
+    </androidx.cardview.widget.CardView>
+
+    <Button
+        android:id="@+id/btnSendToRegistrar"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Send to Registrar"
+        android:textAllCaps="false"
+        android:layout_marginTop="24dp"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:backgroundTint="#2ECC71"/>
+
+    <Button
+        android:id="@+id/btnReturn"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Return"
+        android:textAllCaps="false"
+        android:layout_marginTop="12dp"
+        android:textColor="#333333"
+        android:textSize="16sp"
+        app:backgroundTint="#F0F2F5"/>
+
+</LinearLayout>

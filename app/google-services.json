@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "257860604233",
+    "firebase_url": "https://flamease-c043a-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "flamease-c043a",
+    "storage_bucket": "flamease-c043a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:257860604233:android:ce49a50a7726b5dfc54a98",
+        "android_client_info": {
+          "package_name": "com.example.flamease"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "257860604233-3lcpjh2l7nkjqo8s0qo4lstpin947c3d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.flamease",
+            "certificate_hash": "6d471ffa48ce6ba91dc1367ff8e18082a3bb53ab"
+          }
+        },
+        {
+          "client_id": "257860604233-b3iin0if00pkeq6dsi8cij9gejsomls9.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCnApEKjgT195kTZI6jCYze7XNLEbAADuQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "257860604233-b3iin0if00pkeq6dsi8cij9gejsomls9.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
