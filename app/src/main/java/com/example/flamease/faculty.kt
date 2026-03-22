@@ -2,17 +2,14 @@ package com.example.flamease
 
 import adapter.RequestAdapter
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
-import android.view.View
 import android.widget.*
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -38,7 +35,7 @@ class faculty : AppCompatActivity() {
     private lateinit var adapter: RequestAdapter
 
     private val requestList = arrayListOf<RequestData>()
-    private val masterRequestList = arrayListOf<RequestData>() // Used for filtering
+    private val masterRequestList = arrayListOf<RequestData>()
     private val CHANNEL_ID = "flamease_notifications"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -53,7 +50,6 @@ class faculty : AppCompatActivity() {
             insets
         }
 
-        // Initialize UI
         etSearchRequests = findViewById(R.id.etSearchRequests)
         rvRequests = findViewById(R.id.rvRecentRequests)
         rvRequests.layoutManager = LinearLayoutManager(this)
@@ -65,9 +61,33 @@ class faculty : AppCompatActivity() {
         checkNotificationPermission()
         setupNavigation()
 
-        // Fetch Profile and Requests
-        val userId = FirebaseAuth.getInstance().currentUser?.uid
+        val auth = FirebaseAuth.getInstance()
+        val userId = auth.currentUser?.uid // ✅ Declared only ONCE
+
         if (userId != null) {
+
+            // 🔴 Real-time suspension listener
+            db.collection("users").document(userId)
+                .addSnapshotListener { snapshot, _ ->
+                    if (snapshot != null && snapshot.exists()) {
+                        val status = snapshot.getString("status")
+                        if (status == "suspended") {
+                            Toast.makeText(this, "Your account is suspended.", Toast.LENGTH_LONG).show()
+
+                            // ✅ Clear SharedPreferences so auto-login is blocked
+                            getSharedPreferences("FlameEasePrefs", MODE_PRIVATE)
+                                .edit().clear().apply()
+
+                            auth.signOut()
+
+                            val intent = Intent(this, Login::class.java)
+                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            startActivity(intent)
+                        }
+                    }
+                }
+
+            // ✅ Fetch profile and requests
             db.collection("users").document(userId).get()
                 .addOnSuccessListener { document ->
                     if (document.exists()) {
@@ -81,7 +101,6 @@ class faculty : AppCompatActivity() {
                 }
         }
 
-        // Search Bar Logic
         etSearchRequests.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -106,11 +125,10 @@ class faculty : AppCompatActivity() {
         db.collection("room_requests")
             .whereEqualTo("userId", studentId)
             .orderBy("createdAt", Query.Direction.DESCENDING)
-            .limit(4) // Changed from 10 to 4 to limit visibility
+            .limit(4)
             .addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
 
-                // Notification Logic remains the same...
                 for (dc in snapshot.documentChanges) {
                     if (dc.type == DocumentChange.Type.MODIFIED) {
                         val status = dc.document.getString("status")
@@ -127,7 +145,6 @@ class faculty : AppCompatActivity() {
                     if (req != null) masterRequestList.add(req)
                 }
 
-                // Apply current filter to the limited data
                 filterRequests(etSearchRequests.text.toString())
             }
     }

@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.appcompat.app.AppCompatActivity
 import androidx.cardview.widget.CardView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.flamease.R
@@ -22,7 +23,9 @@ class NotificationAdapter(
     private val onDeleteModeChanged: (Boolean) -> Unit,
     private val onItemClick: (RequestData) -> Unit,
     private val onFeedbackClick: (RequestData) -> Unit,
-    private val onMarkAsRead: (String) -> Unit // NEW: Callback to mark as read
+    private val onMarkAsRead: (String) -> Unit,
+    // ✅ Pass activity so dialogs don't crash when activity is finishing
+    private val onShowStatusPopup: (RequestData) -> Unit
 ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     private val TYPE_HEADER = 0
@@ -40,7 +43,6 @@ class NotificationAdapter(
         notifyDataSetChanged()
     }
 
-    // NEW: Get count of unread notifications
     fun getUnreadCount(): Int {
         return rawList.count { it.notSeen == true }
     }
@@ -61,13 +63,20 @@ class NotificationAdapter(
         }
     }
 
-    override fun getItemViewType(position: Int) = if (displayList[position] is String) TYPE_HEADER else TYPE_ITEM
+    override fun getItemViewType(position: Int) =
+        if (displayList[position] is String) TYPE_HEADER else TYPE_ITEM
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
         return if (viewType == TYPE_HEADER) {
-            HeaderViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_date_header, parent, false))
+            HeaderViewHolder(
+                LayoutInflater.from(parent.context)
+                    .inflate(R.layout.item_date_header, parent, false)
+            )
         } else {
-            NotifViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.item_notification_row, parent, false))
+            NotifViewHolder(
+                LayoutInflater.from(parent.context)
+                    .inflate(R.layout.item_notification_row, parent, false)
+            )
         }
     }
 
@@ -80,62 +89,49 @@ class NotificationAdapter(
             val id = data.requestId ?: ""
             val status = data.status.lowercase()
 
-            // NEW: Handle background color based on notSeen status
             val isUnread = data.notSeen == true
             val cardView = holder.itemView as? CardView
 
-            if (isUnread) {
-                // Light grey background for unread
-                cardView?.setCardBackgroundColor(Color.parseColor("#F5F5F5"))
-            } else {
-                // White background for read
-                cardView?.setCardBackgroundColor(Color.WHITE)
-            }
-
-            // Selection mode background (green) takes priority
-            if (selectedItems.contains(id)) {
-                cardView?.setCardBackgroundColor(Color.parseColor("#D1F2EB"))
+            // ✅ Always reset color first to avoid recycled view color bugs
+            when {
+                selectedItems.contains(id) -> cardView?.setCardBackgroundColor(Color.parseColor("#D1F2EB"))
+                isUnread -> cardView?.setCardBackgroundColor(Color.parseColor("#F5F5F5"))
+                else -> cardView?.setCardBackgroundColor(Color.WHITE)
             }
 
             holder.title.text = when (status) {
                 "approved" -> "Request Approved!"
                 "rejected" -> "Request Rejected"
-                "expired"  -> "Request Expired"
+                "expired" -> "Request Expired"
                 "pending", "registrar_pending" -> "Request Pending"
                 "accepted" -> "Request Accepted"
-                else       -> "Status Updated"
+                else -> "Status Updated"
             }
 
-            // --- SMART CHECK TO PREVENT DOUBLE BUILDING NAME ---
             val buildingName = data.building.uppercase()
             val roomName = data.room.uppercase()
-
-            val displayLocation = if (roomName.startsWith(buildingName)) {
-                roomName // Room already includes building (e.g., "RS 101")
-            } else {
-                "$buildingName $roomName" // Combine them (e.g., "RS" + "101")
-            }
+            val displayLocation = if (roomName.startsWith(buildingName)) roomName
+            else "$buildingName $roomName"
 
             holder.message.text = "Your request for $displayLocation is $status."
-            // ---------------------------------------------------
-
-            // NEW: Show time ago
             holder.time.text = getTimeAgo(data.createdAt?.toDate())
 
             val canFeedback = status in listOf("approved", "rejected", "expired")
             holder.btnFeedback.visibility = if (canFeedback) View.VISIBLE else View.GONE
 
-            holder.btnFeedback.setOnClickListener { onFeedbackClick(data) }
+            // ✅ Prevent feedback click from also triggering itemView click
+            holder.btnFeedback.setOnClickListener { v ->
+                v.tag = "feedback_clicked"
+                onFeedbackClick(data)
+            }
 
             holder.itemView.setOnClickListener {
                 if (isSelectionMode) {
                     toggleSelection(id)
                 } else {
-                    // NEW: Mark as read when clicked
-                    if (isUnread) {
-                        onMarkAsRead(id)
-                    }
-                    if (status != "approved") showStatusPopup(holder.itemView.context, data)
+                    if (isUnread) onMarkAsRead(id)
+                    // ✅ Use activity callback for dialog — safe from crashes
+                    if (status != "approved") onShowStatusPopup(data)
                     onItemClick(data)
                 }
             }
@@ -151,10 +147,8 @@ class NotificationAdapter(
         }
     }
 
-    // NEW: Helper function to format time ago
     private fun getTimeAgo(date: Date?): String {
         if (date == null) return ""
-
         val now = Date()
         val diffInMillis = now.time - date.time
         val diffInMinutes = diffInMillis / (1000 * 60)
@@ -169,34 +163,6 @@ class NotificationAdapter(
             diffInDays < 7 -> "$diffInDays days ago"
             else -> SimpleDateFormat("MMM d", Locale.getDefault()).format(date)
         }
-    }
-
-    private fun showStatusPopup(context: Context, request: RequestData) {
-        val status = request.status?.lowercase() ?: "pending"
-
-        // Apply the same smart check for the popup message
-        val bldg = request.building.uppercase()
-        val rm = request.room.uppercase()
-        val loc = if (rm.startsWith(bldg)) rm else "$bldg $rm"
-
-        val (title, message) = when (status) {
-            "rejected" -> Pair("Request Rejected", "Your request for $loc was not accepted.")
-            "accepted" -> Pair("Step 1 Complete!", "Accepted by GSD. Now send to Registrar.")
-            "registrar_pending" -> Pair("Almost there!", "The Registrar is currently reviewing your request.")
-            "expired" -> Pair("Request Expired", "This request for $loc has passed its time limit.")
-            else -> Pair("Request Pending", "Waiting for approval.")
-        }
-
-        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_status_feedback, null)
-        val alertDialog = AlertDialog.Builder(context).setView(dialogView).create()
-
-        dialogView.findViewById<TextView>(R.id.tvFeedbackTitle).text = title
-        dialogView.findViewById<TextView>(R.id.tvFeedbackMessage).text = message
-        dialogView.findViewById<ImageView>(R.id.ivFeedbackIcon)?.visibility = View.GONE
-        dialogView.findViewById<Button>(R.id.btnStatusClose).setOnClickListener { alertDialog.dismiss() }
-
-        alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        alertDialog.show()
     }
 
     fun getSelectedIds(): List<String> = selectedItems.toList()
@@ -226,8 +192,12 @@ class NotificationAdapter(
 
     @Suppress("NotifyDataSetChanged")
     private fun toggleSelection(id: String) {
-        if (selectedItems.contains(id)) selectedItems.remove(id) else selectedItems.add(id)
-        if (selectedItems.isEmpty()) { isSelectionMode = false; onDeleteModeChanged(false) }
+        if (selectedItems.contains(id)) selectedItems.remove(id)
+        else selectedItems.add(id)
+        if (selectedItems.isEmpty()) {
+            isSelectionMode = false
+            onDeleteModeChanged(false)
+        }
         notifyDataSetChanged()
     }
 

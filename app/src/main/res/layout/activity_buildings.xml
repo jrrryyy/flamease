@@ -101,8 +101,8 @@
             android:clickable="true"
             android:focusable="true">
             <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
+                android:layout_width="27dp"
+                android:layout_height="27dp"
                 android:src="@drawable/home"
                 app:tint="#9E9E9E" />
             <TextView
@@ -123,9 +123,10 @@
             android:orientation="vertical"
             android:clickable="true"
             android:focusable="true">
+
             <ImageView
-                android:layout_width="25dp"
-                android:layout_height="25dp"
+                android:layout_width="27dp"
+                android:layout_height="27dp"
                 android:src="@drawable/request"
                 app:tint="#9E9E9E" />
             <TextView
@@ -166,8 +167,8 @@
             android:clickable="true"
             android:focusable="true">
             <ImageView
-                android:layout_width="25dp"
-                android:layout_height="25dp"
+                android:layout_width="27dp"
+                android:layout_height="27dp"
                 android:src="@drawable/settings"
                 app:tint="#9E9E9E" />
             <TextView

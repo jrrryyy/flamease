@@ -1,5 +1,6 @@
 package com.example.flamease
 
+import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -58,13 +59,6 @@ class Settings : AppCompatActivity() {
 
         // Navigation
         findViewById<TextView>(R.id.btnBack).setOnClickListener { finish() }
-        // In Settings.kt, notifications.kt, and request.kt
-        findViewById<LinearLayout>(R.id.home).setOnClickListener {
-            val intent = Intent(this, faculty::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-            startActivity(intent)
-            // DO NOT call finish() here
-        }
 
         findViewById<LinearLayout>(R.id.home).setOnClickListener {
             val intent = Intent(this, faculty::class.java)
@@ -86,23 +80,39 @@ class Settings : AppCompatActivity() {
             startActivity(intent)
             overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
         }
+
         findViewById<LinearLayout>(R.id.btnPrivacy).setOnClickListener {
             startActivity(Intent(this, privacy_policy::class.java))
         }
+
         findViewById<LinearLayout>(R.id.btnHelp).setOnClickListener {
             startActivity(Intent(this, help_support::class.java))
         }
 
-        // Logout Logic
+        // Updated Logout Logic with Confirmation Message
         findViewById<Button>(R.id.btnLogout).setOnClickListener {
-            auth.signOut()
-            val sharedPrefs = getSharedPreferences("FlameEasePrefs", Context.MODE_PRIVATE)
-            sharedPrefs.edit().clear().apply() // Wipes Remember Me data
-
-            val intent = Intent(this, Login::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
-            finish()
+            showLogoutConfirmation(auth)
         }
+    }
+
+    private fun showLogoutConfirmation(auth: FirebaseAuth) {
+        AlertDialog.Builder(this)
+            .setTitle("Logout")
+            .setMessage("Are you sure you want to log out?")
+            .setPositiveButton("Logout") { _, _ ->
+                // Perform Logout logic
+                auth.signOut()
+                val sharedPrefs = getSharedPreferences("FlameEasePrefs", Context.MODE_PRIVATE)
+                sharedPrefs.edit().clear().apply()
+
+                val intent = Intent(this, Login::class.java)
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                startActivity(intent)
+                finish()
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
     }
 }

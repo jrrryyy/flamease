@@ -39,7 +39,6 @@ class validation_otp : AppCompatActivity() {
         val auth = FirebaseAuth.getInstance()
         tvResend = findViewById(R.id.tvResend)
 
-        // 1. Retrieve data from Intent
         val email = intent.getStringExtra("email") ?: ""
         val password = intent.getStringExtra("password") ?: ""
         val idNumber = intent.getStringExtra("idNumber") ?: ""
@@ -47,7 +46,6 @@ class validation_otp : AppCompatActivity() {
         val fName = intent.getStringExtra("firstName") ?: ""
         val lName = intent.getStringExtra("lastName") ?: ""
 
-        // 2. Initialize UI Components
         val etOtp1 = findViewById<EditText>(R.id.etOtp1)
         val etOtp2 = findViewById<EditText>(R.id.etOtp2)
         val etOtp3 = findViewById<EditText>(R.id.etOtp3)
@@ -59,26 +57,19 @@ class validation_otp : AppCompatActivity() {
 
         val otpBoxes = arrayOf(etOtp1, etOtp2, etOtp3, etOtp4, etOtp5, etOtp6)
 
-        // 3. Setup Logic for Auto-move, Backspace, and Paste
         setupOtpLogic(otpBoxes)
-
-        // 4. Initial Database Fetch
         fetchOtpFromDatabase(email)
 
         tvResend.setOnClickListener {
-            if (otpExpired) {
-                sendNewOtp(email)
-            }
+            if (otpExpired) sendNewOtp(email)
         }
 
         btnConfirm.setOnClickListener {
             val enteredOtp = otpBoxes.joinToString("") { it.text.toString() }
-
             if (otpExpired) {
                 Toast.makeText(this, "Code expired. Please resend.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
-
             if (enteredOtp == currentServerOtp && currentServerOtp.isNotEmpty()) {
                 auth.createUserWithEmailAndPassword(email, password)
                     .addOnCompleteListener { task ->
@@ -100,32 +91,25 @@ class validation_otp : AppCompatActivity() {
                 override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
                 override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                     val input = s.toString()
-
-                    // Handle Paste (If more than 1 character is entered)
                     if (input.length > 1) {
                         val digits = input.filter { it.isDigit() }
                         for (j in 0 until digits.length.coerceAtMost(boxes.size)) {
                             boxes[j].setText(digits[j].toString())
                         }
-                        // Set focus to the last box filled
                         val nextFocus = if (digits.length < boxes.size) digits.length else boxes.size - 1
                         boxes[nextFocus].requestFocus()
                         boxes[nextFocus].setSelection(boxes[nextFocus].text.length)
-                    }
-                    // Move forward on single digit entry
-                    else if (input.isNotEmpty() && i < boxes.size - 1) {
+                    } else if (input.isNotEmpty() && i < boxes.size - 1) {
                         boxes[i + 1].requestFocus()
                     }
                 }
                 override fun afterTextChanged(s: Editable?) {}
             })
-
-            // Handle Backspace navigation
             boxes[i].setOnKeyListener { _, keyCode, event ->
                 if (keyCode == KeyEvent.KEYCODE_DEL && event.action == KeyEvent.ACTION_DOWN) {
                     if (boxes[i].text.isEmpty() && i > 0) {
                         boxes[i - 1].requestFocus()
-                        boxes[i - 1].setText("") // Optional: Clear previous box on backspace
+                        boxes[i - 1].setText("")
                         return@setOnKeyListener true
                     }
                 }
@@ -138,19 +122,16 @@ class validation_otp : AppCompatActivity() {
         val emailKey = email.replace(".", "_")
         val dbRef = FirebaseDatabase.getInstance("https://flamease-c043a-default-rtdb.asia-southeast1.firebasedatabase.app")
             .getReference("RegistrationOTPs").child(emailKey)
-
         dbRef.get().addOnSuccessListener { snapshot ->
             if (snapshot.exists()) {
                 currentServerOtp = snapshot.child("otp").value.toString()
                 val timestamp = snapshot.child("timestamp").getValue(Long::class.java) ?: 0L
-                val otpDuration = 100 * 1000 // 100 seconds
+                val otpDuration = 100 * 1000L
                 val currentTime = System.currentTimeMillis()
-
                 if (currentTime - timestamp > otpDuration) {
                     setOtpExpiredUI()
                 } else {
-                    val remaining = otpDuration - (currentTime - timestamp)
-                    startOtpTimer(remaining)
+                    startOtpTimer(otpDuration - (currentTime - timestamp))
                 }
             }
         }
@@ -165,9 +146,7 @@ class validation_otp : AppCompatActivity() {
                 tvResend.isClickable = false
                 tvResend.setTextColor(Color.GRAY)
             }
-            override fun onFinish() {
-                setOtpExpiredUI()
-            }
+            override fun onFinish() { setOtpExpiredUI() }
         }.start()
     }
 
@@ -181,15 +160,15 @@ class validation_otp : AppCompatActivity() {
     private fun sendNewOtp(email: String) {
         val newOtp = (100000..999999).random().toString()
         val emailKey = email.replace(".", "_")
-        val db = FirebaseDatabase.getInstance("https://flamease-c043a-default-rtdb.asia-southeast1.firebasedatabase.app")
+        FirebaseDatabase.getInstance("https://flamease-c043a-default-rtdb.asia-southeast1.firebasedatabase.app")
             .getReference("RegistrationOTPs").child(emailKey)
-
-        db.setValue(mapOf("otp" to newOtp, "timestamp" to System.currentTimeMillis())).addOnSuccessListener {
-            currentServerOtp = newOtp
-            sendEmailLocally(email, newOtp)
-            startOtpTimer(100 * 1000)
-            Toast.makeText(this, "New code sent!", Toast.LENGTH_SHORT).show()
-        }
+            .setValue(mapOf("otp" to newOtp, "timestamp" to System.currentTimeMillis()))
+            .addOnSuccessListener {
+                currentServerOtp = newOtp
+                sendEmailLocally(email, newOtp)
+                startOtpTimer(100 * 1000L)
+                Toast.makeText(this, "New code sent!", Toast.LENGTH_SHORT).show()
+            }
     }
 
     private fun sendEmailLocally(receiverEmail: String, otp: String) {
@@ -218,19 +197,24 @@ class validation_otp : AppCompatActivity() {
     }
 
     private fun saveUserToFirestore(uid: String, f: String, l: String, e: String, id: String, r: String) {
-        val db = FirebaseFirestore.getInstance()
         val userData = hashMapOf(
-            "firstName" to f, "lastName" to l, "email" to e,
-            "idNumber" to id, "role" to r
+            "firstName" to f,
+            "lastName" to l,
+            "email" to e,
+            "idNumber" to id,
+            "role" to r,
+            "status" to "approved",
+            "provider" to "email"   // FIX: String, not listOf("email")
         )
-
-        db.collection("users").document(uid).set(userData).addOnSuccessListener {
-            Toast.makeText(this, "Account created successfully!", Toast.LENGTH_LONG).show()
-            val emailKey = e.replace(".", "_")
-            FirebaseDatabase.getInstance().getReference("RegistrationOTPs").child(emailKey).removeValue()
-            startActivity(Intent(this, Login::class.java))
-            finish()
-        }
+        FirebaseFirestore.getInstance().collection("users").document(uid).set(userData)
+            .addOnSuccessListener {
+                Toast.makeText(this, "Account created successfully!", Toast.LENGTH_LONG).show()
+                val emailKey = e.replace(".", "_")
+                FirebaseDatabase.getInstance()
+                    .getReference("RegistrationOTPs").child(emailKey).removeValue()
+                startActivity(Intent(this, Login::class.java))
+                finish()
+            }
     }
 
     override fun onDestroy() {

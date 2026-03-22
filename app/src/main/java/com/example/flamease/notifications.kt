@@ -24,12 +24,11 @@ class notifications : AppCompatActivity() {
     private lateinit var adapter: NotificationAdapter
     private lateinit var btnDelete: ImageView
     private lateinit var btnSelectAll: TextView
-    private lateinit var selectionBar: LinearLayout
+    private lateinit var selectionBar: RelativeLayout
     private lateinit var deletedManager: DeletedNotificationsManager
     private var deletedIds: Set<String> = emptySet()
-
-    // NEW: Badge TextView
     private lateinit var tvNotifBadge: TextView
+    private var activeDialog: AlertDialog? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,12 +40,19 @@ class notifications : AppCompatActivity() {
         btnDelete = findViewById(R.id.btnDeleteNotif)
         btnSelectAll = findViewById(R.id.btnSelectAll)
         selectionBar = findViewById(R.id.selectionBar)
-        tvNotifBadge = findViewById(R.id.tvNotifBadge) // NEW
+        tvNotifBadge = findViewById(R.id.tvNotifBadge)
 
         rvNotif.layoutManager = LinearLayoutManager(this)
 
         fetchData()
         setupButtons()
+    }
+
+    // ✅ Safely dismiss dialog when activity stops (prevents WindowLeaked)
+    override fun onStop() {
+        super.onStop()
+        activeDialog?.dismiss()
+        activeDialog = null
     }
 
     private fun setupButtons() {
@@ -56,55 +62,72 @@ class notifications : AppCompatActivity() {
         btnDelete.setOnClickListener {
             val ids = adapter.getSelectedIds()
             if (ids.isNotEmpty()) {
-                AlertDialog.Builder(this)
-                    .setTitle("Remove Items")
-                    .setMessage("Remove ${ids.size} items from your view?")
-                    .setPositiveButton("Remove") { _, _ -> performLocalDelete(ids) }
-                    .setNegativeButton("Cancel", null)
-                    .show()
+                showSafeDialog(
+                    AlertDialog.Builder(this)
+                        .setTitle("Remove Items")
+                        .setMessage("Remove ${ids.size} items from your view?")
+                        .setPositiveButton("Remove") { _, _ -> performLocalDelete(ids) }
+                        .setNegativeButton("Cancel", null)
+                        .create()
+                )
             }
         }
 
-        // Navigation
         findViewById<LinearLayout>(R.id.home).setOnClickListener {
-            startActivity(Intent(this, faculty::class.java))
-            overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
+            finish()
         }
         findViewById<LinearLayout>(R.id.request).setOnClickListener {
-            startActivity(Intent(this, request::class.java))
+            val intent = Intent(this, request::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            startActivity(intent)
             overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
         }
         findViewById<LinearLayout>(R.id.settings).setOnClickListener {
-            startActivity(Intent(this, Settings::class.java))
+            val intent = Intent(this, Settings::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            startActivity(intent)
             overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
         }
+    }
+
+    // ✅ Central safe dialog launcher — guards against finishing activity
+    private fun showSafeDialog(dialog: AlertDialog) {
+        if (isFinishing || isDestroyed) return
+        activeDialog?.dismiss()
+        activeDialog = dialog
+        dialog.setOnDismissListener { activeDialog = null }
+        dialog.show()
     }
 
     private fun fetchData() {
         val firebaseUser = FirebaseAuth.getInstance().currentUser ?: return
         lifecycleScope.launch {
             deletedIds = deletedManager.deletedIdsFlow.first()
-            db.collection("users").document(firebaseUser.uid).get().addOnSuccessListener { userDoc ->
-                val idNumber = userDoc.getString("idNumber") ?: ""
-                db.collection("room_requests").whereEqualTo("userId", idNumber)
-                    .addSnapshotListener { snapshots, _ ->
-                        if (snapshots == null) return@addSnapshotListener
-                        masterNotifList.clear()
-                        for (doc in snapshots.documents) {
-                            val req = doc.toObject(RequestData::class.java)
-                            if (req != null) {
-                                req.requestId = doc.id
-                                masterNotifList.add(req)
+            db.collection("users").document(firebaseUser.uid).get()
+                .addOnSuccessListener { userDoc ->
+                    val idNumber = userDoc.getString("idNumber") ?: ""
+                    db.collection("room_requests")
+                        .whereEqualTo("userId", idNumber)
+                        .addSnapshotListener { snapshots, _ ->
+                            if (snapshots == null) return@addSnapshotListener
+                            masterNotifList.clear()
+                            for (doc in snapshots.documents) {
+                                val req = doc.toObject(RequestData::class.java)
+                                if (req != null) {
+                                    req.requestId = doc.id
+                                    masterNotifList.add(req)
+                                }
                             }
+                            updateUI()
                         }
-                        updateUI()
-                    }
-            }
+                }
         }
     }
 
     private fun updateUI() {
-        val filtered = masterNotifList.filter { it.requestId !in deletedIds }.sortedByDescending { it.createdAt }
+        val filtered = masterNotifList
+            .filter { it.requestId !in deletedIds }
+            .sortedByDescending { it.createdAt }
 
         if (!::adapter.isInitialized) {
             adapter = NotificationAdapter(
@@ -114,6 +137,7 @@ class notifications : AppCompatActivity() {
                     btnDelete.visibility = if (isMode) View.VISIBLE else View.GONE
                 },
                 { clickedItem ->
+                    // ✅ onItemClick: only show confirmation slip for approved
                     if (clickedItem.status.lowercase() == "approved") {
                         showConfirmationSlip(clickedItem)
                     }
@@ -121,9 +145,12 @@ class notifications : AppCompatActivity() {
                 { feedbackItem ->
                     showFeedbackDialog(feedbackItem)
                 },
-                // NEW: Mark as read callback
                 { requestId ->
                     markAsRead(requestId)
+                },
+                // ✅ New callback: status popup handled in activity, not adapter
+                { requestData ->
+                    showStatusPopup(requestData)
                 }
             )
             rvNotif.adapter = adapter
@@ -131,12 +158,11 @@ class notifications : AppCompatActivity() {
             adapter.updateData(filtered)
         }
 
-        // NEW: Update badge count
         updateBadgeCount()
     }
 
-    // NEW: Update badge with unread count
     private fun updateBadgeCount() {
+        if (!::adapter.isInitialized) return
         val unreadCount = adapter.getUnreadCount()
         if (unreadCount > 0) {
             tvNotifBadge.text = if (unreadCount > 99) "99+" else unreadCount.toString()
@@ -146,23 +172,48 @@ class notifications : AppCompatActivity() {
         }
     }
 
-    // NEW: Mark notification as read in Firestore
     private fun markAsRead(requestId: String) {
         db.collection("room_requests").document(requestId)
             .update("notSeen", false)
             .addOnSuccessListener {
-                // Update local list immediately for UI responsiveness
                 val item = masterNotifList.find { it.requestId == requestId }
                 item?.notSeen = false
                 updateBadgeCount()
             }
     }
 
+    // ✅ Moved from adapter to activity — safe dialog context
+    private fun showStatusPopup(request: RequestData) {
+        val status = request.status.lowercase()
+        val bldg = request.building.uppercase()
+        val rm = request.room.uppercase()
+        val loc = if (rm.startsWith(bldg)) rm else "$bldg $rm"
+
+        val (title, message) = when (status) {
+            "rejected" -> Pair("Request Rejected", "Your request for $loc was not accepted.")
+            "accepted" -> Pair("Step 1 Complete!", "Accepted by GSD. Now send to Registrar.")
+            "registrar_pending" -> Pair("Almost there!", "The Registrar is currently reviewing your request.")
+            "expired" -> Pair("Request Expired", "This request for $loc has passed its time limit.")
+            else -> Pair("Request Pending", "Waiting for approval.")
+        }
+
+        val dialogView = layoutInflater.inflate(R.layout.dialog_status_feedback, null)
+        val alertDialog = AlertDialog.Builder(this).setView(dialogView).create()
+
+        dialogView.findViewById<TextView>(R.id.tvFeedbackTitle).text = title
+        dialogView.findViewById<TextView>(R.id.tvFeedbackMessage).text = message
+        dialogView.findViewById<ImageView>(R.id.ivFeedbackIcon)?.visibility = View.GONE
+        dialogView.findViewById<Button>(R.id.btnStatusClose).setOnClickListener {
+            alertDialog.dismiss()
+        }
+
+        showSafeDialog(alertDialog)
+    }
+
     private fun showConfirmationSlip(request: RequestData) {
         val dialogView = layoutInflater.inflate(R.layout.dialog_confirmation_slip, null)
         val alertDialog = AlertDialog.Builder(this).setView(dialogView).create()
 
-        // Bind data
         dialogView.findViewById<TextView>(R.id.tvConfirmationPermit).text = request.permit ?: "N/A"
 
         val building = request.building.uppercase()
@@ -176,8 +227,7 @@ class notifications : AppCompatActivity() {
             alertDialog.dismiss()
         }
 
-        alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        alertDialog.show()
+        showSafeDialog(alertDialog)
     }
 
     private fun showFeedbackDialog(request: RequestData) {
@@ -211,8 +261,8 @@ class notifications : AppCompatActivity() {
                 Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
             }
         }
-        alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        alertDialog.show()
+
+        showSafeDialog(alertDialog)
     }
 
     private fun performLocalDelete(ids: List<String>) {

@@ -3,7 +3,6 @@ package com.example.flamease
 import adapter.AllRequestsAdapter
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
 import android.widget.*
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -13,7 +12,6 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.Query
 import java.util.Calendar
 import java.util.Date
 
@@ -22,7 +20,6 @@ class request : AppCompatActivity() {
     private val db = FirebaseFirestore.getInstance()
     private lateinit var rvAllRequests: RecyclerView
     private val requestList = arrayListOf<RequestData>()
-    private val TAG = "RequestActivity"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,28 +38,7 @@ class request : AppCompatActivity() {
         fetchAllUserRequests()
 
         findViewById<TextView>(R.id.btnBack).setOnClickListener { finish() }
-
-        // Navigation Setup
-        val navClickListener = { activityClass: Class<*> ->
-            val intent = Intent(this, activityClass)
-            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
-            startActivity(intent)
-        }
-
-        findViewById<LinearLayout>(R.id.home).setOnClickListener {
-            navClickListener(faculty::class.java)
-            overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
-        }
-
-        findViewById<LinearLayout>(R.id.notification).setOnClickListener {
-            navClickListener(notifications::class.java)
-            overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
-        }
-
-        findViewById<LinearLayout>(R.id.settings).setOnClickListener {
-            navClickListener(Settings::class.java)
-            overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
-        }
+        setupNavigation()
     }
 
     private fun fetchAllUserRequests() {
@@ -73,43 +49,24 @@ class request : AppCompatActivity() {
                 if (document.exists()) {
                     val myIdNumber = document.getString("idNumber") ?: ""
 
-                    // We sort manually in Kotlin to avoid requiring a Composite Index in Firestore
                     db.collection("room_requests")
                         .whereEqualTo("userId", myIdNumber)
                         .addSnapshotListener { snapshot, e ->
                             if (e != null || snapshot == null) return@addSnapshotListener
 
-                            val batch = db.batch()
-                            var hasExpiredUpdates = false
                             requestList.clear()
+                            val today = Calendar.getInstance()
 
                             for (doc in snapshot.documents) {
                                 val req = doc.toObject(RequestData::class.java)?.copy(requestId = doc.id)
-                                if (req != null) {
-                                    val requestDate = req.createdAt?.toDate()
-
-                                    // If room is "Approved/Accepted" but date is in the past, Mark Expired
-                                    if (requestDate != null && (req.status == "approved" || req.status == "accepted")) {
-                                        if (isDateExpired(requestDate)) {
-                                            val docRef = db.collection("room_requests").document(doc.id)
-                                            batch.update(docRef, "status", "expired")
-                                            hasExpiredUpdates = true
-
-                                            requestList.add(req.copy(status = "expired"))
-                                            continue
-                                        }
+                                if (req != null && req.createdAt != null) {
+                                    // Only add if date is Today
+                                    if (isSameDay(req.createdAt!!.toDate(), today.time)) {
+                                        requestList.add(req)
                                     }
-                                    requestList.add(req)
                                 }
                             }
 
-                            if (hasExpiredUpdates) {
-                                batch.commit().addOnSuccessListener {
-                                    Log.d(TAG, "Database cleaned: Old requests expired.")
-                                }
-                            }
-
-                            // Manual sort by date descending
                             requestList.sortByDescending { it.createdAt }
                             rvAllRequests.adapter = AllRequestsAdapter(requestList)
                         }
@@ -117,19 +74,22 @@ class request : AppCompatActivity() {
             }
     }
 
-    private fun isDateExpired(requestDate: Date): Boolean {
-        val calRequest = Calendar.getInstance().apply { time = requestDate }
-        val calToday = Calendar.getInstance()
-
-        // Normalize both to Midnight
-        listOf(calRequest, calToday).forEach {
-            it.set(Calendar.HOUR_OF_DAY, 0)
-            it.set(Calendar.MINUTE, 0)
-            it.set(Calendar.SECOND, 0)
-            it.set(Calendar.MILLISECOND, 0)
-        }
-
-        return calRequest.before(calToday)
+    private fun isSameDay(date1: Date, date2: Date): Boolean {
+        val cal1 = Calendar.getInstance().apply { time = date1 }
+        val cal2 = Calendar.getInstance().apply { time = date2 }
+        return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+                cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
     }
 
+    private fun setupNavigation() {
+        findViewById<LinearLayout>(R.id.home).setOnClickListener {
+            startActivity(Intent(this, faculty::class.java))
+        }
+        findViewById<LinearLayout>(R.id.notification).setOnClickListener {
+            startActivity(Intent(this, notifications::class.java))
+        }
+        findViewById<LinearLayout>(R.id.settings).setOnClickListener {
+            startActivity(Intent(this, Settings::class.java))
+        }
+    }
 }

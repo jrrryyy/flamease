@@ -12,6 +12,8 @@ import android.widget.*
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -39,6 +41,17 @@ class createaccount : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_createaccount)
 
+        val scrollView = findViewById<ScrollView>(R.id.mainScrollView)
+        ViewCompat.setOnApplyWindowInsetsListener(scrollView) { view, insets ->
+            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val navInsets = insets.getInsets(WindowInsetsCompat.Type.navigationBars())
+            view.setPadding(
+                view.paddingLeft, view.paddingTop, view.paddingRight,
+                if (imeInsets.bottom > 0) imeInsets.bottom else navInsets.bottom
+            )
+            insets
+        }
+
         auth = FirebaseAuth.getInstance()
 
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -47,51 +60,56 @@ class createaccount : AppCompatActivity() {
             .build()
         googleSignInClient = GoogleSignIn.getClient(this, gso)
 
-        val etFirstName = findViewById<EditText>(R.id.etFirstName)
-        val etLastName = findViewById<EditText>(R.id.etLastName)
-        val etEmail = findViewById<EditText>(R.id.etEmail)
-        val etStudentId = findViewById<EditText>(R.id.studentId)
-        val etPassword = findViewById<EditText>(R.id.etPassword)
-        val etConfirmPassword = findViewById<EditText>(R.id.etConfirmPassword)
-        val btnConfirm = findViewById<Button>(R.id.btnConfirm)
-        val rgRoles = findViewById<RadioGroup>(R.id.rgRoles)
-        val passLayout = findViewById<TextInputLayout>(R.id.passwordLayout)
-        val confirmPassLayout = findViewById<TextInputLayout>(R.id.confirmPasswordLayout)
-        val googleBtn = findViewById<com.google.android.gms.common.SignInButton>(R.id.btnGoogleSignIn)
-        val tvStrength = findViewById<TextView>(R.id.tvPasswordStrength)
+        val etFirstName        = findViewById<EditText>(R.id.etFirstName)
+        val etLastName         = findViewById<EditText>(R.id.etLastName)
+        val etEmail            = findViewById<EditText>(R.id.etEmail)
+        val etStudentId        = findViewById<EditText>(R.id.studentId)
+        val etPassword         = findViewById<EditText>(R.id.etPassword)
+        val etConfirmPassword  = findViewById<EditText>(R.id.etConfirmPassword)
+        val btnConfirm         = findViewById<Button>(R.id.btnConfirm)
+        val rgRoles            = findViewById<RadioGroup>(R.id.rgRoles)
+        val passLayout         = findViewById<TextInputLayout>(R.id.passwordLayout)
+        val confirmPassLayout  = findViewById<TextInputLayout>(R.id.confirmPasswordLayout)
+        val googleBtn          = findViewById<com.google.android.gms.common.SignInButton>(R.id.btnGoogleSignIn)
+        val tvStrength         = findViewById<TextView>(R.id.tvPasswordStrength)
 
         for (i in 0 until googleBtn.childCount) {
             val v = googleBtn.getChildAt(i)
-            if (v is TextView) {
-                v.text = "Sign up with Google"
-                break
-            }
+            if (v is TextView) { v.text = "Sign up with Google"; break }
         }
 
         googleBtn.setOnClickListener {
             googleSignInClient.signOut().addOnCompleteListener {
-                val signInIntent = googleSignInClient.signInIntent
-                startActivityForResult(signInIntent, REQ_ONE_TAP)
+                startActivityForResult(googleSignInClient.signInIntent, REQ_ONE_TAP)
             }
         }
 
         findViewById<TextView>(R.id.txtLogin).setOnClickListener {
-            startActivity(Intent(this, Login::class.java))
-            finish()
+            startActivity(Intent(this, Login::class.java)); finish()
         }
 
         setupPasswordWatcher(etPassword, passLayout, tvStrength)
         setupConfirmPasswordWatcher(etConfirmPassword, confirmPassLayout)
 
+        val bottomFields = listOf(etPassword, etConfirmPassword)
+        for (field in bottomFields) {
+            field.setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) {
+                    scrollView.postDelayed({
+                        scrollView.smoothScrollTo(0, scrollView.getChildAt(0).height)
+                    }, 300)
+                }
+            }
+        }
+
         btnConfirm.setOnClickListener {
             if (validateInputs(etFirstName, etLastName, etStudentId, etEmail, etPassword, etConfirmPassword, passLayout, confirmPassLayout)) {
-                val email = etEmail.text.toString().trim()
-                val idNumber = etStudentId.text.toString().trim()
+                val email     = etEmail.text.toString().trim()
+                val idNumber  = etStudentId.text.toString().trim()
                 val firstName = etFirstName.text.toString().trim()
-                val lastName = etLastName.text.toString().trim()
-                val password = etPassword.text.toString()
-                val role = if (rgRoles.checkedRadioButtonId == R.id.rbStudent) "Student" else "Instructor"
-
+                val lastName  = etLastName.text.toString().trim()
+                val password  = etPassword.text.toString()
+                val role      = if (rgRoles.checkedRadioButtonId == R.id.rbStudent) "Student" else "Instructor"
                 checkDuplicatesAndProceed(email, idNumber, firstName, lastName, password, role)
             }
         }
@@ -103,12 +121,8 @@ class createaccount : AppCompatActivity() {
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
                 layout.error = null
                 val password = s.toString()
-                if (password.isEmpty()) {
-                    strengthView.visibility = View.GONE
-                } else {
-                    strengthView.visibility = View.VISIBLE
-                    updateStrengthIndicator(password, strengthView)
-                }
+                if (password.isEmpty()) strengthView.visibility = View.GONE
+                else { strengthView.visibility = View.VISIBLE; updateStrengthIndicator(password, strengthView) }
             }
             override fun afterTextChanged(s: Editable?) {}
         })
@@ -117,9 +131,7 @@ class createaccount : AppCompatActivity() {
     private fun setupConfirmPasswordWatcher(editText: EditText, layout: TextInputLayout) {
         editText.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                layout.error = null
-            }
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) { layout.error = null }
             override fun afterTextChanged(s: Editable?) {}
         })
     }
@@ -127,35 +139,17 @@ class createaccount : AppCompatActivity() {
     private fun updateStrengthIndicator(password: String, strengthView: TextView) {
         val commonPasswords = listOf("12345678", "password", "qwertyuiop", "11111111", "aaaaaaaa", "mmmmmmmm")
         when {
-            password.length < 8 -> {
-                strengthView.text = "Strength: Too short (Min 8)"
-                strengthView.setTextColor(Color.RED)
-            }
-            password.length > 64 -> {
-                strengthView.text = "Strength: Too long (Max 64)"
-                strengthView.setTextColor(Color.RED)
-            }
-            password.contains(" ") -> {
-                strengthView.text = "Strength: Spaces not allowed"
-                strengthView.setTextColor(Color.RED)
-            }
-            commonPasswords.contains(password.lowercase()) -> {
-                strengthView.text = "Strength: Extremely Weak (Common)"
-                strengthView.setTextColor(Color.RED)
-            }
-            isStrongPassword(password) -> {
-                strengthView.text = "Strength: Strong"
-                strengthView.setTextColor(Color.parseColor("#2ECC71"))
-            }
-            else -> {
-                strengthView.text = "Strength: Medium (Add numbers & symbols)"
-                strengthView.setTextColor(Color.parseColor("#F1C40F"))
-            }
+            password.length < 8                              -> { strengthView.text = "Strength: Too short (Min 8)";           strengthView.setTextColor(Color.RED) }
+            password.length > 64                             -> { strengthView.text = "Strength: Too long (Max 64)";            strengthView.setTextColor(Color.RED) }
+            password.contains(" ")                           -> { strengthView.text = "Strength: Spaces not allowed";           strengthView.setTextColor(Color.RED) }
+            commonPasswords.contains(password.lowercase())  -> { strengthView.text = "Strength: Extremely Weak (Common)";      strengthView.setTextColor(Color.RED) }
+            isStrongPassword(password)                       -> { strengthView.text = "Strength: Strong";                       strengthView.setTextColor(Color.parseColor("#2ECC71")) }
+            else                                             -> { strengthView.text = "Strength: Medium (Add numbers & symbols)"; strengthView.setTextColor(Color.parseColor("#F1C40F")) }
         }
     }
 
     private fun isStrongPassword(password: String): Boolean {
-        val hasDigit = password.any { it.isDigit() }
+        val hasDigit   = password.any { it.isDigit() }
         val hasSpecial = password.any { !it.isLetterOrDigit() }
         return password.length in 8..64 && hasDigit && hasSpecial && !password.contains(" ")
     }
@@ -167,15 +161,15 @@ class createaccount : AppCompatActivity() {
     ): Boolean {
         var isValid = true
         val commonPasswords = listOf("12345678", "password", "mmmmmmmm", "11111111", "aaaaaaaa")
-        val fNameText = firstName.text.toString()
-        val lNameText = lastName.text.toString()
-        val emailText = email.text.toString().trim()
-        val idText = studentId.text.toString().trim()
-        val passText = pass.text.toString()
+        val fNameText   = firstName.text.toString()
+        val lNameText   = lastName.text.toString()
+        val emailText   = email.text.toString().trim()
+        val idText      = studentId.text.toString().trim()
+        val passText    = pass.text.toString()
         val confirmText = confirmPass.text.toString()
 
         if (fNameText.isBlank()) { firstName.error = "Required"; isValid = false }
-        if (lNameText.isBlank()) { lastName.error = "Required"; isValid = false }
+        if (lNameText.isBlank()) { lastName.error  = "Required"; isValid = false }
 
         val idPattern = Regex("^(\\d{2}-\\d{4}-\\d{6})|(\\d{2}-\\d{2}-\\d{4}-\\d{6})$")
         if (!idText.matches(idPattern)) { studentId.error = "Invalid format"; isValid = false }
@@ -184,12 +178,12 @@ class createaccount : AppCompatActivity() {
         if (!emailText.matches(emailPattern)) { email.error = "Use Phinma email"; isValid = false }
 
         when {
-            passText.length < 8 -> { passLayout.error = "Minimum 8 characters required"; isValid = false }
-            passText.length > 64 -> { passLayout.error = "Maximum 64 characters allowed"; isValid = false }
-            passText.contains(" ") -> { passLayout.error = "Spaces are not allowed"; isValid = false }
-            commonPasswords.contains(passText.lowercase()) -> { passLayout.error = "This password is too common"; isValid = false }
-            !passText.any { it.isDigit() } -> { passLayout.error = "Must contain at least one number"; isValid = false }
-            !passText.any { !it.isLetterOrDigit() } -> { passLayout.error = "Must contain at least one special character"; isValid = false }
+            passText.length < 8                             -> { passLayout.error = "Minimum 8 characters required";          isValid = false }
+            passText.length > 64                            -> { passLayout.error = "Maximum 64 characters allowed";           isValid = false }
+            passText.contains(" ")                          -> { passLayout.error = "Spaces are not allowed";                  isValid = false }
+            commonPasswords.contains(passText.lowercase())  -> { passLayout.error = "This password is too common";             isValid = false }
+            !passText.any { it.isDigit() }                  -> { passLayout.error = "Must contain at least one number";        isValid = false }
+            !passText.any { !it.isLetterOrDigit() }         -> { passLayout.error = "Must contain at least one special character"; isValid = false }
         }
 
         if (confirmText != passText) { confirmPassLayout.error = "Passwords do not match"; isValid = false }
@@ -199,9 +193,8 @@ class createaccount : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_ONE_TAP) {
-            val task = GoogleSignIn.getSignedInAccountFromIntent(data)
             try {
-                val account = task.getResult(ApiException::class.java)
+                val account = GoogleSignIn.getSignedInAccountFromIntent(data).getResult(ApiException::class.java)
                 val email = account?.email
                 if (email != null && email.endsWith("@phinmaed.com")) {
                     firebaseAuthWithGoogle(account.idToken!!, email)
@@ -231,15 +224,26 @@ class createaccount : AppCompatActivity() {
         FirebaseFirestore.getInstance().collection("users").document(user.uid).get()
             .addOnSuccessListener { document ->
                 if (document.exists()) {
-                    startActivity(Intent(this, faculty::class.java))
-                    finish()
+                    // Account already exists — block re-registration
+                    showErrorAlert(
+                        "Account Exists",
+                        "This account is already registered. Please go to the Login screen."
+                    )
+                    auth.signOut()
+                    googleSignInClient.signOut()
                 } else {
+                    // New Google user — collect role and ID
                     showRegistrationDetailsDialog { selectedRole, enteredId ->
                         val firstName = user.displayName?.split(" ")?.firstOrNull() ?: ""
-                        val lastName = user.displayName?.split(" ")?.drop(1)?.joinToString(" ") ?: ""
+                        val lastName  = user.displayName?.split(" ")?.drop(1)?.joinToString(" ") ?: ""
                         val newUser = hashMapOf(
-                            "firstName" to firstName, "lastName" to lastName,
-                            "email" to email, "role" to selectedRole, "idNumber" to enteredId
+                            "firstName" to firstName,
+                            "lastName"  to lastName,
+                            "email"     to email,
+                            "role"      to selectedRole,
+                            "idNumber"  to enteredId,
+                            "status"    to "approved",
+                            "provider"  to "google"   // FIX: String, not listOf("google")
                         )
                         FirebaseFirestore.getInstance().collection("users").document(user.uid).set(newUser)
                             .addOnSuccessListener {
@@ -258,11 +262,10 @@ class createaccount : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(50, 40, 50, 10)
         }
-        val roles = arrayOf("Student", "Instructor")
+        val roles   = arrayOf("Student", "Instructor")
         val spinner = Spinner(this)
         spinner.adapter = ArrayAdapter(this, android.R.layout.simple_spinner_dropdown_item, roles)
         val idInput = EditText(this).apply { hint = "ID Number"; inputType = InputType.TYPE_CLASS_TEXT }
-
         layout.addView(TextView(this).apply { text = "Select Role:" })
         layout.addView(spinner)
         layout.addView(idInput)
@@ -293,19 +296,18 @@ class createaccount : AppCompatActivity() {
 
     private fun saveOtpAndSendEmail(email: String, otp: String, pass: String, fName: String, lName: String, id: String, role: String) {
         val emailKey = email.replace(".", "_")
-        val dbRTDB = FirebaseDatabase.getInstance("https://flamease-c043a-default-rtdb.asia-southeast1.firebasedatabase.app")
+        FirebaseDatabase.getInstance("https://flamease-c043a-default-rtdb.asia-southeast1.firebasedatabase.app")
             .getReference("RegistrationOTPs").child(emailKey)
-
-        dbRTDB.setValue(mapOf("otp" to otp, "timestamp" to System.currentTimeMillis())).addOnSuccessListener {
-            sendEmailWithOTP(email, otp)
-            val intent = Intent(this, validation_otp::class.java).apply {
-                putExtra("email", email); putExtra("password", pass)
-                putExtra("firstName", fName); putExtra("lastName", lName)
-                putExtra("idNumber", id); putExtra("role", role)
+            .setValue(mapOf("otp" to otp, "timestamp" to System.currentTimeMillis()))
+            .addOnSuccessListener {
+                sendEmailWithOTP(email, otp)
+                val intent = Intent(this, validation_otp::class.java).apply {
+                    putExtra("email", email);     putExtra("password", pass)
+                    putExtra("firstName", fName); putExtra("lastName", lName)
+                    putExtra("idNumber", id);     putExtra("role", role)
+                }
+                startActivity(intent); finish()
             }
-            startActivity(intent)
-            finish()
-        }
     }
 
     private fun sendEmailWithOTP(receiverEmail: String, otp: String) {

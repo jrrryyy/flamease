@@ -16,141 +16,93 @@ import com.example.flamease.R
 import com.example.flamease.RequestData
 import com.google.firebase.firestore.FirebaseFirestore
 import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 
-class AllRequestsAdapter(private val rawList: List<RequestData>) :
-    RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+class AllRequestsAdapter(private val displayList: List<RequestData>) :
+    RecyclerView.Adapter<AllRequestsAdapter.ItemViewHolder>() {
 
-    private val TYPE_HEADER = 0
-    private val TYPE_ITEM = 1
-    private val displayList = mutableListOf<Any>()
-
-    init {
-        groupDataByDate()
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ItemViewHolder {
+        val v = LayoutInflater.from(parent.context).inflate(R.layout.item_request_accepted, parent, false)
+        return ItemViewHolder(v)
     }
 
-    private fun groupDataByDate() {
-        if (rawList.isEmpty()) return
-        val sdfHeader = SimpleDateFormat("MMMM d, yyyy", Locale.getDefault())
-        val todayStr = sdfHeader.format(Date())
-        var lastDate = ""
+    override fun onBindViewHolder(holder: ItemViewHolder, position: Int) {
+        val req = displayList[position]
+        val status = req.status?.lowercase() ?: "pending"
 
-        for (item in rawList) {
-            val itemDate = item.createdAt?.toDate()?.let { sdfHeader.format(it) } ?: ""
-            if (itemDate != lastDate) {
-                if (itemDate == todayStr) displayList.add("Today")
-                else displayList.add(itemDate)
-                lastDate = itemDate
-            }
-            displayList.add(item)
-        }
-    }
+        // --- FIX FOR DOUBLE RS NAME ---
+        val building = req.building.trim().uppercase()
+        val room = req.room.trim().uppercase()
 
-    override fun getItemViewType(position: Int): Int {
-        return if (displayList[position] is String) TYPE_HEADER else TYPE_ITEM
-    }
-
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-        return if (viewType == TYPE_HEADER) {
-            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_date_header, parent, false)
-            HeaderViewHolder(v)
+        if (room.startsWith(building)) {
+            // If room is "RS 101" and building is "RS", just show "RS 101"
+            holder.tvRoom.text = room
         } else {
-            val v = LayoutInflater.from(parent.context).inflate(R.layout.item_request_accepted, parent, false)
-            ItemViewHolder(v)
+            // Otherwise show both (e.g., "MAIN 101")
+            holder.tvRoom.text = "$building $room"
         }
-    }
+        // ------------------------------
 
-    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        val item = displayList[position]
+        req.createdAt?.let {
+            val sdf = SimpleDateFormat("h:mm a", Locale.getDefault())
+            holder.tvDate.text = "Today • ${sdf.format(it.toDate())}"
+        }
 
-        if (holder is HeaderViewHolder) {
-            holder.tvHeader.text = item as String
-        } else if (holder is ItemViewHolder) {
-            val req = item as RequestData
-            val status = req.status?.lowercase() ?: "pending"
+        holder.tvStatus.text = status.uppercase()
+        holder.itemView.setOnClickListener { showStatusPopup(holder.itemView.context, req) }
 
-            holder.tvRoom.text = "${req.building.uppercase()} ${req.room.uppercase()}"
-            req.createdAt?.let {
-                val sdf = SimpleDateFormat("MMM d, yyyy • h:mm a", Locale.getDefault())
-                holder.tvDate.text = sdf.format(it.toDate())
+        holder.buttonContainer?.visibility = View.VISIBLE
+        holder.btnRegistrar?.visibility = View.GONE
+        holder.btnCancel?.visibility = View.VISIBLE
+
+        when (status) {
+            "accepted" -> {
+                holder.tvStatus.setTextColor(Color.parseColor("#1078B9"))
+                holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_accepted)
+                holder.iconStatus.setBackgroundResource(R.drawable.bg_badge_accepted)
+                (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.accepted)
+
+                holder.btnRegistrar?.visibility = View.VISIBLE
+                holder.btnRegistrar?.setOnClickListener { showAcceptedFormPopup(holder.itemView.context, req) }
+                holder.btnCancel?.setOnClickListener { showCancelDialog(holder.itemView.context, req.requestId) }
             }
+            "approved" -> {
+                holder.tvStatus.setTextColor(Color.parseColor("#2ECC71"))
+                holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_approved)
+                holder.iconStatus.setBackgroundResource(R.drawable.bg_badge_approved)
+                (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.approved)
+                holder.buttonContainer?.visibility = View.GONE
+            }
+            "expired" -> {
+                holder.tvStatus.setTextColor(Color.parseColor("#94A3B8"))
+                holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_expired)
+                holder.iconStatus.setBackgroundResource(R.drawable.bg_badge_expired)
+                (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.expired)
+                holder.buttonContainer?.visibility = View.GONE
+            }
+            "rejected" -> {
+                holder.tvStatus.setTextColor(Color.parseColor("#EF4444"))
+                holder.tvStatus.setBackgroundResource(R.drawable.bg_bagde_rejected)
+                holder.iconStatus.setBackgroundResource(R.drawable.bg_bagde_rejected)
+                (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.rejected)
+                holder.buttonContainer?.visibility = View.GONE
+            }
+            "registrar_pending", "pending" -> {
+                holder.tvStatus.setTextColor(Color.parseColor("#E67E22"))
+                holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_pending)
+                holder.iconStatus.setBackgroundResource(R.drawable.bg_badge_pending)
+                (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.pending)
 
-            holder.tvStatus.text = status.uppercase()
-            holder.itemView.setOnClickListener { showStatusPopup(holder.itemView.context, req) }
-
-            // Default Visibility
-            holder.buttonContainer?.visibility = View.VISIBLE
-            holder.btnRegistrar?.visibility = View.GONE
-            holder.btnCancel?.visibility = View.VISIBLE
-
-            when (status) {
-                "accepted" -> {
-                    holder.tvStatus.setTextColor(Color.parseColor("#1078B9"))
-                    holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_accepted)
-
-                    // Matching Notification style:
-                    holder.iconStatus.setBackgroundResource(R.drawable.bg_badge_accepted)
-                    (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.accepted)
-
-                    holder.btnRegistrar?.visibility = View.VISIBLE
-                    holder.btnRegistrar?.setOnClickListener { showAcceptedFormPopup(holder.itemView.context, req) }
+                if (status == "pending") {
                     holder.btnCancel?.setOnClickListener { showCancelDialog(holder.itemView.context, req.requestId) }
-                }
-                "approved" -> {
-                    holder.tvStatus.setTextColor(Color.parseColor("#2ECC71"))
-                    holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_approved)
-
-                    // Matching Notification style:
-                    holder.iconStatus.setBackgroundResource(R.drawable.bg_badge_approved)
-                    (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.approved)
-
+                } else {
                     holder.buttonContainer?.visibility = View.GONE
-                }
-                "expired" -> {
-                    holder.tvStatus.setTextColor(Color.parseColor("#94A3B8"))
-                    holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_expired)
-
-                    // Matching Notification style:
-                    holder.iconStatus.setBackgroundResource(R.drawable.bg_badge_expired)
-                    (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.expired)
-
-                    holder.buttonContainer?.visibility = View.GONE
-                }
-                "rejected" -> {
-                    holder.tvStatus.setTextColor(Color.parseColor("#EF4444"))
-                    holder.tvStatus.setBackgroundResource(R.drawable.bg_bagde_rejected)
-
-                    // Matching Notification style:
-                    holder.iconStatus.setBackgroundResource(R.drawable.bg_bagde_rejected)
-                    (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.rejected)
-
-                    holder.buttonContainer?.visibility = View.GONE
-                }
-                "registrar_pending", "pending" -> {
-                    holder.tvStatus.setTextColor(Color.parseColor("#E67E22"))
-                    holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_pending)
-
-                    // Matching Notification style:
-                    holder.iconStatus.setBackgroundResource(R.drawable.bg_badge_pending)
-                    (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.pending)
-
-                    if (status == "pending") {
-                        holder.btnCancel?.setOnClickListener { showCancelDialog(holder.itemView.context, req.requestId) }
-                    } else {
-                        holder.buttonContainer?.visibility = View.GONE
-                    }
                 }
             }
         }
     }
 
     override fun getItemCount() = displayList.size
-
-    // ViewHolders
-    class HeaderViewHolder(v: View) : RecyclerView.ViewHolder(v) {
-        val tvHeader: TextView = v.findViewById(R.id.tvDateHeader)
-    }
 
     class ItemViewHolder(v: View) : RecyclerView.ViewHolder(v) {
         val tvRoom: TextView = v.findViewById(R.id.title1)
@@ -162,29 +114,23 @@ class AllRequestsAdapter(private val rawList: List<RequestData>) :
         val buttonContainer: View? = v.findViewById(R.id.buttonContainer)
     }
 
-    // --- Helper Dialog Functions (showStatusPopup, showAcceptedFormPopup, etc.) ---
-    // [Keep your existing dialog functions exactly as they were in your AllRequestsAdapter]
-
     private fun showStatusPopup(context: Context, request: RequestData) {
         val status = request.status?.lowercase() ?: "pending"
         val (title, message, iconRes) = when (status) {
-            "approved" -> Triple("Congratulations!", "Your request for ${request.room.uppercase()} has been approved. Check your notification to get your Confirmation Slip.", R.drawable.approved)
+            "approved" -> Triple("Congratulations!", "Your request for ${request.room.uppercase()} has been approved. Go to notification to view confirmation slip.", R.drawable.approved)
             "rejected" -> Triple("Request Rejected", "Sorry, your request was not accepted.", R.drawable.rejected)
-            "accepted" -> Triple("Step 1 Complete!", "Your request has been accepted by GSD department. Send to Registrar.", R.drawable.accepted)
-            "registrar_pending" -> Triple("Almost there!", "The Registrar is currently reviewing your request. Please wait for the final approval.", R.drawable.pending)
-            "expired" -> Triple("Request Expired", "This request has passed or was cancelled.", R.drawable.expired)
+            "accepted" -> Triple("Step 1 Complete!", "Accepted by GSD. Send to Registrar.", R.drawable.accepted)
+            "registrar_pending" -> Triple("Almost there!", "The Registrar is currently reviewing your request.", R.drawable.pending)
+            "expired" -> Triple("Request has Expired", "This request has passed or was cancelled.", R.drawable.expired)
             else -> Triple("Request Pending", "Waiting for GSD approval.", R.drawable.pending)
         }
 
         val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_status_feedback, null)
-        val builder = AlertDialog.Builder(context).setView(dialogView)
-        val alertDialog = builder.create()
-
+        val alertDialog = AlertDialog.Builder(context).setView(dialogView).create()
         dialogView.findViewById<TextView>(R.id.tvFeedbackTitle).text = title
         dialogView.findViewById<TextView>(R.id.tvFeedbackMessage).text = message
         dialogView.findViewById<ImageView>(R.id.ivFeedbackIcon).setImageResource(iconRes)
         dialogView.findViewById<Button>(R.id.btnStatusClose).setOnClickListener { alertDialog.dismiss() }
-
         alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
         alertDialog.show()
     }
@@ -194,33 +140,19 @@ class AllRequestsAdapter(private val rawList: List<RequestData>) :
             val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_accepted, null)
             val alertDialog = AlertDialog.Builder(context).setView(dialogView).create()
 
-            val btnSend = dialogView.findViewById<Button>(R.id.btnSendToRegistrar)
-            val btnReturn = dialogView.findViewById<Button>(R.id.btnReturn)
-
-            // Find the TextViews from your XML
-            val tvDate = dialogView.findViewById<TextView>(R.id.tvPopupDate)
-            val tvTimeSlot = dialogView.findViewById<TextView>(R.id.tvPopupTimeSlot)
-
-            // Set Building, Room, Block, Description
             dialogView.findViewById<TextView>(R.id.tvPopupBuilding)?.text = request.building.uppercase()
             dialogView.findViewById<TextView>(R.id.tvPopupRoom)?.text = request.room.uppercase()
             dialogView.findViewById<TextView>(R.id.tvPopupBlock)?.text = request.block ?: "N/A"
             dialogView.findViewById<TextView>(R.id.tvPopupDescription)?.text = request.description ?: "N/A"
+            dialogView.findViewById<TextView>(R.id.tvPopupTimeSlot)?.text = request.timeSlotIndex ?: "No Time Set"
 
-            // FIX: Set the Date
             request.createdAt?.let {
                 val sdf = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
-                tvDate?.text = sdf.format(it.toDate())
-            } ?: run {
-                tvDate?.text = "N/A"
+                dialogView.findViewById<TextView>(R.id.tvPopupDate)?.text = sdf.format(it.toDate())
             }
 
-            // FIX: Set the Time Slot
-            // If you have a list of time slots, map the index to a string here
-            // For now, we will use your index or a raw string if available
-            tvTimeSlot?.text = request.timeSlotIndex ?: "No Time Set"
-
-            btnReturn?.setOnClickListener { alertDialog.dismiss() }
+            dialogView.findViewById<Button>(R.id.btnReturn)?.setOnClickListener { alertDialog.dismiss() }
+            val btnSend = dialogView.findViewById<Button>(R.id.btnSendToRegistrar)
 
             btnSend?.setOnClickListener {
                 request.requestId?.let { id ->
@@ -233,25 +165,22 @@ class AllRequestsAdapter(private val rawList: List<RequestData>) :
                         }
                 }
             }
-
             alertDialog.show()
             alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-        } catch (e: Exception) {
-            Log.e("PopupError", "Error showing popup: ${e.message}")
-        }
+        } catch (e: Exception) { Log.e("PopupError", "Error: ${e.message}") }
     }
 
     private fun showCancelDialog(context: Context, requestId: String?) {
         if (requestId == null) return
         AlertDialog.Builder(context)
             .setTitle("Cancel Request")
-            .setMessage("Are you sure you want to cancel?")
-            .setPositiveButton("Yes") { _, _ -> updateStatusToExpired(context, requestId) }
+            .setMessage("Are you sure?")
+            .setPositiveButton("Yes") { _, _ -> updateStatusToExpired(requestId) }
             .setNegativeButton("No", null)
             .show()
     }
 
-    private fun updateStatusToExpired(context: Context, requestId: String) {
+    private fun updateStatusToExpired(requestId: String) {
         FirebaseFirestore.getInstance().collection("room_requests").document(requestId)
             .update("status", "expired")
     }
