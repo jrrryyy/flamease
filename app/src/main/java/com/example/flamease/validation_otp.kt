@@ -66,16 +66,27 @@ class validation_otp : AppCompatActivity() {
 
         btnConfirm.setOnClickListener {
             val enteredOtp = otpBoxes.joinToString("") { it.text.toString() }
+
             if (otpExpired) {
                 Toast.makeText(this, "Code expired. Please resend.", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
+
             if (enteredOtp == currentServerOtp && currentServerOtp.isNotEmpty()) {
+                // --- ADD THESE LINES ---
+                btnConfirm.text = "Creating Account..."
+                btnConfirm.isEnabled = false // Prevents double-clicking
+                // -----------------------
+
                 auth.createUserWithEmailAndPassword(email, password)
                     .addOnCompleteListener { task ->
                         if (task.isSuccessful) {
                             saveUserToFirestore(auth.currentUser?.uid ?: "", fName, lName, email, idNumber, role)
                         } else {
+                            // --- RESET IF IT FAILS ---
+                            btnConfirm.text = "Confirm"
+                            btnConfirm.isEnabled = true
+                            // --------------------------
                             Toast.makeText(this, "Auth Error: ${task.exception?.message}", Toast.LENGTH_LONG).show()
                         }
                     }

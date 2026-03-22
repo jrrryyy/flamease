@@ -238,33 +238,36 @@ class notifications : AppCompatActivity() {
         val etBody = dialogView.findViewById<EditText>(R.id.etFeedbackBody)
         val btnSubmit = dialogView.findViewById<Button>(R.id.btnSubmitFeedback)
 
-        etHeader.text?.clear()
-        etBody.text?.clear()
-
         btnSubmit.setOnClickListener {
-            val subject = etHeader.text.toString().trim()
-            val message = etBody.text.toString().trim()
+            val header = etHeader.text.toString().trim()
+            val body = etBody.text.toString().trim()
 
-            if (subject.isNotEmpty() && message.isNotEmpty()) {
+            if (header.isNotEmpty() && body.isNotEmpty()) {
+                // Updated to match your Firestore Screenshot fields
                 val feedbackData = hashMapOf(
-                    "requestId" to request.requestId,
-                    "subject" to subject,
-                    "message" to message,
-                    "timestamp" to com.google.firebase.Timestamp.now(),
-                    "userId" to request.userId
+                    "building" to request.building,
+                    "email" to (FirebaseAuth.getInstance().currentUser?.email ?: ""),
+                    "feedbackBody" to body,
+                    "feedbackCreatedAt" to com.google.firebase.Timestamp.now(),
+                    "feedbackHeader" to header,
+                    "idNumber" to (request.userId ?: ""), // Assuming userId holds the ID Number
+                    "room" to request.room,
+                    "timeSlotIndex" to (request.timeSlotIndex ?: "0"),
+                    "notSeen" to true
                 )
+
                 db.collection("feedbacks").add(feedbackData).addOnSuccessListener {
                     Toast.makeText(this, "Feedback submitted!", Toast.LENGTH_SHORT).show()
                     alertDialog.dismiss()
+                }.addOnFailureListener {
+                    Toast.makeText(this, "Error: ${it.message}", Toast.LENGTH_SHORT).show()
                 }
             } else {
                 Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
             }
         }
-
         showSafeDialog(alertDialog)
     }
-
     private fun performLocalDelete(ids: List<String>) {
         lifecycleScope.launch {
             deletedManager.markAsDeleted(ids)
