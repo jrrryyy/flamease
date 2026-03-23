@@ -61,7 +61,7 @@ class AllRequestsAdapter(private val displayList: List<RequestData>) :
                 holder.tvStatus.setBackgroundResource(R.drawable.bg_badge_accepted)
                 holder.iconStatus.setBackgroundResource(R.drawable.bg_badge_accepted)
                 (holder.iconStatus as? ImageView)?.setImageResource(R.drawable.accepted)
-
+                holder.btnRegistrar?.text = "Send to GSD"
                 holder.btnRegistrar?.visibility = View.VISIBLE
                 holder.btnRegistrar?.setOnClickListener { showAcceptedFormPopup(holder.itemView.context, req) }
                 holder.btnCancel?.setOnClickListener { showCancelDialog(holder.itemView.context, req.requestId) }
@@ -119,8 +119,8 @@ class AllRequestsAdapter(private val displayList: List<RequestData>) :
         val (title, message, iconRes) = when (status) {
             "approved" -> Triple("Congratulations!", "Your request for ${request.room.uppercase()} has been approved. Go to notification to view confirmation slip.", R.drawable.approved)
             "rejected" -> Triple("Request Rejected", "Sorry, your request was not accepted.", R.drawable.rejected)
-            "accepted" -> Triple("Step 1 Complete!", "Accepted by GSD. Send to Registrar.", R.drawable.accepted)
-            "registrar_pending" -> Triple("Almost there!", "The Registrar is currently reviewing your request.", R.drawable.pending)
+            "accepted" -> Triple("Step 1 Complete!", "Accepted by Registrar. Send to GSD.", R.drawable.accepted)
+            "registrar_pending" -> Triple("Almost there!", "The GSD is currently reviewing your request.", R.drawable.pending)
             "expired" -> Triple("Request has Expired", "This request has passed or was cancelled.", R.drawable.expired)
             else -> Triple("Request Pending", "Waiting for GSD approval.", R.drawable.pending)
         }
@@ -160,7 +160,7 @@ class AllRequestsAdapter(private val displayList: List<RequestData>) :
                     FirebaseFirestore.getInstance().collection("room_requests").document(id)
                         .update("status", "registrar_pending")
                         .addOnSuccessListener {
-                            Toast.makeText(context, "Sent to Registrar!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Sent to GSD!", Toast.LENGTH_SHORT).show()
                             alertDialog.dismiss()
                         }
                 }

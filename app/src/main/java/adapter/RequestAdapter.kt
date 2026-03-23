@@ -93,8 +93,8 @@ class RequestAdapter(private val requestList: MutableList<RequestData>) :
         val (title, message, iconRes) = when (status) {
             "approved" -> Triple("Congratulations!", "Your request for ${request.room.uppercase()} is approved. Go to notification to view confirmation slip.", R.drawable.approved)
             "rejected" -> Triple("Request Rejected", "Your request was not accepted.", R.drawable.rejected)
-            "accepted" -> Triple("Step 1 Complete!", "GSD department accepted. Send to Registrar.", R.drawable.accepted)
-            "registrar_pending" -> Triple("Processing...", "Registrar is reviewing your request.", R.drawable.pending)
+            "accepted" -> Triple("Step 1 Complete!", "Registrar department accepted. Send to GSD.", R.drawable.accepted)
+            "registrar_pending" -> Triple("Processing...", "GSD is reviewing your request.", R.drawable.pending)
             "expired" -> Triple("Request Expired", "This request is no longer active.", R.drawable.expired)
             else -> Triple("Still Pending", "Your request is in the queue.", R.drawable.pending)
         }

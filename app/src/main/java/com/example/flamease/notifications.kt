@@ -214,8 +214,8 @@ class notifications : AppCompatActivity() {
 
         val (title, message) = when (status) {
             "rejected" -> Pair("Request Rejected", "Your request for $loc was not accepted.")
-            "accepted" -> Pair("Step 1 Complete!", "Accepted by GSD. Now send to Registrar.")
-            "registrar_pending" -> Pair("Almost there!", "The Registrar is currently reviewing your request.")
+            "accepted" -> Pair("Step 1 Complete!", "Accepted by Registrar. Now send to GSD.")
+            "registrar_pending" -> Pair("Almost there!", "The GSD. is currently reviewing your request.")
             "expired" -> Pair("Request Expired", "This request for $loc has passed its time limit.")
             else -> Pair("Request Pending", "Waiting for approval.")
         }

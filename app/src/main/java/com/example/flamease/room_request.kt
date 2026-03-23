@@ -142,7 +142,7 @@ class room_request : AppCompatActivity() {
 
         db.collection("room_requests")
             .whereEqualTo("room", normalizedRoomName)
-            .whereIn("status", listOf("approved", "accepted", "registrar_pending"))
+            .whereIn("status", listOf("pending", "approved", "accepted", "registrar_pending"))
             // CRITICAL: Only get bookings for TODAY - this enables daily reset!
             .whereGreaterThanOrEqualTo("bookingDate", todayStart)
             .whereLessThanOrEqualTo("bookingDate", todayEnd)
