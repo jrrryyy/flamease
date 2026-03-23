@@ -161,21 +161,21 @@ class faculty : AppCompatActivity() {
 
         findViewById<LinearLayout>(R.id.btnRequest).setOnClickListener {
             val intent = Intent(this, request::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             startActivity(intent)
             overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
 
         findViewById<LinearLayout>(R.id.notification).setOnClickListener {
             val intent = Intent(this, notifications::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             startActivity(intent)
             overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
 
         findViewById<LinearLayout>(R.id.settings).setOnClickListener {
             val intent = Intent(this, Settings::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             startActivity(intent)
             overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
@@ -209,5 +209,10 @@ class faculty : AppCompatActivity() {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
             NotificationManagerCompat.from(this).notify(System.currentTimeMillis().toInt(), builder.build())
         }
+    }
+
+    override fun onBackPressed() {
+        // Exit app when back is pressed from Faculty (home)
+        super.onBackPressed()
     }
 }

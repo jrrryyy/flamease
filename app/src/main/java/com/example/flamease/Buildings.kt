@@ -56,20 +56,28 @@ class Buildings : AppCompatActivity() {
 
         // Bottom Navigation
         findViewById<LinearLayout>(R.id.btnHome).setOnClickListener {
-            startActivity(Intent(this, faculty::class.java))
+            val intent = Intent(this, faculty::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            startActivity(intent)
             overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
             finish()
         }
         findViewById<LinearLayout>(R.id.btnRequest).setOnClickListener {
-            startActivity(Intent(this, request::class.java))
+            val intent = Intent(this, request::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            startActivity(intent)
             overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<LinearLayout>(R.id.btnSettings).setOnClickListener {
-            startActivity(Intent(this, Settings::class.java))
+            val intent = Intent(this, Settings::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            startActivity(intent)
             overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<LinearLayout>(R.id.notification).setOnClickListener {
-            startActivity(Intent(this, notifications::class.java))
+            val intent = Intent(this, notifications::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            startActivity(intent)
             overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<TextView>(R.id.btnBack).setOnClickListener {
@@ -134,5 +142,12 @@ class Buildings : AppCompatActivity() {
             }
         }
         adapter.updateList(tempFilteredList)
+    }
+
+    override fun onBackPressed() {
+        val intent = Intent(this, faculty::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        startActivity(intent)
+        overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
     }
 }

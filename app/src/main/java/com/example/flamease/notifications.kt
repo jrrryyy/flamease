@@ -70,7 +70,13 @@ class notifications : AppCompatActivity() {
     }
 
     private fun setupButtons() {
-        findViewById<TextView>(R.id.btnBack).setOnClickListener { finish() }
+        // Back button - go to Home (Faculty) with proper flags
+        findViewById<TextView>(R.id.btnBack).setOnClickListener {
+            val intent = Intent(this, faculty::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            startActivity(intent)
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
+        }
         btnSelectAll.setOnClickListener { adapter.selectAll() }
 
         btnDelete.setOnClickListener {
@@ -88,17 +94,20 @@ class notifications : AppCompatActivity() {
         }
 
         findViewById<LinearLayout>(R.id.home).setOnClickListener {
-            finish()
+            val intent = Intent(this, faculty::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            startActivity(intent)
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<LinearLayout>(R.id.request).setOnClickListener {
             val intent = Intent(this, request::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             startActivity(intent)
             overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<LinearLayout>(R.id.settings).setOnClickListener {
             val intent = Intent(this, Settings::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
             startActivity(intent)
             overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
@@ -289,5 +298,12 @@ class notifications : AppCompatActivity() {
             updateUI()
             adapter.clearSelection()
         }
+    }
+
+    override fun onBackPressed() {
+        val intent = Intent(this, faculty::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        startActivity(intent)
+        overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
     }
 }
