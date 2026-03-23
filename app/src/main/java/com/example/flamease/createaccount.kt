@@ -104,12 +104,18 @@ class createaccount : AppCompatActivity() {
 
         btnConfirm.setOnClickListener {
             if (validateInputs(etFirstName, etLastName, etStudentId, etEmail, etPassword, etConfirmPassword, passLayout, confirmPassLayout)) {
+
+                // Change text and disable to prevent multiple clicks
+                btnConfirm.text = "Sending OTP..."
+                btnConfirm.isEnabled = false
+
                 val email     = etEmail.text.toString().trim()
                 val idNumber  = etStudentId.text.toString().trim()
                 val firstName = etFirstName.text.toString().trim()
                 val lastName  = etLastName.text.toString().trim()
                 val password  = etPassword.text.toString()
                 val role      = if (rgRoles.checkedRadioButtonId == R.id.rbStudent) "Student" else "Instructor"
+
                 checkDuplicatesAndProceed(email, idNumber, firstName, lastName, password, role)
             }
         }

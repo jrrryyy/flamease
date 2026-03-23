@@ -110,106 +110,244 @@ class Login : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == REQ_ONE_TAP) {
+            Log.d(TAG, "=== onActivityResult called with resultCode: $resultCode (RESULT_OK=$RESULT_OK, RESULT_CANCELED=${RESULT_CANCELED})")
             try {
-                val account = GoogleSignIn.getSignedInAccountFromIntent(data)
-                    .getResult(ApiException::class.java)
-                val email = account?.email
-                if (email != null && email.endsWith("@phinmaed.com")) {
-                    firebaseAuthWithGoogle(account.idToken!!, email)
-                } else {
-                    googleSignInClient.signOut()
-                    showErrorAlert("Access Restricted", "Please use your official @phinmaed.com email.")
+                // Try to get the signed-in account regardless of result code
+                // The actual error will be in the task
+                val task = GoogleSignIn.getSignedInAccountFromIntent(data)
+                Log.d(TAG, "=== Got GoogleSignIn task")
+                
+                try {
+                    val account = task.getResult(ApiException::class.java)
+                    Log.d(TAG, "=== Successfully got account from task")
+                    
+                    if (account == null) {
+                        Log.e(TAG, "=== Google account is null")
+                        Toast.makeText(this, "Unable to retrieve account information. Please try again.", Toast.LENGTH_SHORT).show()
+                        showErrorAlert("Error", "Could not get Google account information. Please try again.")
+                        return
+                    }
+
+                    val email = account.email
+                    Log.d(TAG, "=== Google Sign-In successful. Email: $email")
+
+                    if (email != null && email.endsWith("@phinmaed.com")) {
+                        if (account.idToken == null) {
+                            Log.e(TAG, "=== Google ID token is null")
+                            Toast.makeText(this, "Authentication failed. Please try again.", Toast.LENGTH_SHORT).show()
+                            showErrorAlert("Error", "Google authentication failed. Please try again.")
+                            return
+                        }
+                        Log.d(TAG, "=== Proceeding with Firebase authentication for: $email")
+                        Toast.makeText(this, "Signing in with Google...", Toast.LENGTH_SHORT).show()
+                        firebaseAuthWithGoogle(account.idToken!!, email)
+                    } else {
+                        googleSignInClient.signOut()
+                        Toast.makeText(this, "Please use your official @phinmaed.com email", Toast.LENGTH_LONG).show()
+                        showErrorAlert("Access Restricted", "Please use your official @phinmaed.com email.\nProvided: $email")
+                        Log.w(TAG, "User tried to sign in with non-phinmaed email: $email")
+                    }
+                } catch (e: ApiException) {
+                    Log.e(TAG, "=== ApiException caught. Status code: ${e.statusCode}, Message: ${e.message}")
+                    when (e.statusCode) {
+                        12501 -> {
+                            Log.d(TAG, "=== User canceled sign-in (12501)")
+                            Toast.makeText(this, "Sign-in was canceled", Toast.LENGTH_SHORT).show()
+                            showErrorAlert("Canceled", "Google Sign-In was canceled. Please try again.")
+                        }
+                        12500 -> {
+                            Log.e(TAG, "=== Network error (12500)")
+                            Toast.makeText(this, "Network connection failed. Please check your internet.", Toast.LENGTH_LONG).show()
+                            showErrorAlert("Network Error", "Unable to connect. Please check your internet connection and try again.")
+                        }
+                        else -> {
+                            Log.e(TAG, "=== Other error: ${e.statusCode}")
+                            Toast.makeText(this, "Sign-in failed. Please try again.", Toast.LENGTH_LONG).show()
+                            showErrorAlert("Sign-In Error", "Google Sign-In failed. Please try again.")
+                        }
+                    }
                 }
-            } catch (e: ApiException) {
-                Log.e(TAG, "Google Sign-In failed: ${e.statusCode}")
+            } catch (e: Exception) {
+                Log.e(TAG, "=== Unexpected exception in onActivityResult: ${e.message}", e)
+                Toast.makeText(this, "An error occurred. Please try again.", Toast.LENGTH_LONG).show()
+                showErrorAlert("Error", "An unexpected error occurred. Please try again.")
             }
         }
     }
 
     private fun firebaseAuthWithGoogle(idToken: String, googleEmail: String) {
+        Log.d(TAG, "=== STEP 1: Starting Firebase authentication with Google for email: $googleEmail")
         val googleCredential = GoogleAuthProvider.getCredential(idToken, null)
+        Log.d(TAG, "=== STEP 2: Google credential created successfully")
 
         // ✅ FIX: Use fetchSignInMethodsForEmail to detect provider collision BEFORE auth
         auth.fetchSignInMethodsForEmail(googleEmail)
             .addOnCompleteListener { task ->
+                Log.d(TAG, "=== STEP 3: fetchSignInMethodsForEmail completed")
                 if (!task.isSuccessful) {
-                    showErrorAlert("Error", "Could not verify email: ${task.exception?.message}")
+                    Log.e(TAG, "=== ERROR at STEP 3: fetchSignInMethodsForEmail failed: ${task.exception?.message}")
+                    runOnUiThread {
+                        Toast.makeText(this@Login, "Could not verify email: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                        showErrorAlert("Verification Failed", "Could not verify email: ${task.exception?.message}")
+                    }
                     return@addOnCompleteListener
                 }
 
                 val signInMethods = task.result?.signInMethods ?: emptyList()
-                Log.d(TAG, "Sign-in methods for $googleEmail: $signInMethods")
+                Log.d(TAG, "=== STEP 4: Sign-in methods for $googleEmail: $signInMethods")
 
                 // Check what provider(s) exist for this email in Firebase Auth
                 val hasEmailPassword = signInMethods.contains("password")
                 val hasGoogle = signInMethods.contains("google.com")
+                
+                Log.d(TAG, "=== STEP 5: Provider analysis - hasEmailPassword: $hasEmailPassword, hasGoogle: $hasGoogle")
 
                 when {
                     // Case 1: Email exists, Google doesn't - need to link
                     hasEmailPassword && !hasGoogle -> {
-                        showLinkAccountDialog(googleCredential, googleEmail)
+                        Log.d(TAG, "=== CASE 1: Email exists, Google doesn't. Showing link dialog.")
+                        runOnUiThread {
+                            showLinkAccountDialog(googleCredential, googleEmail)
+                        }
                     }
 
                     // Case 2: Google already exists (no email) - just sign in
                     hasGoogle && !hasEmailPassword -> {
+                        Log.d(TAG, "=== CASE 2: Only Google exists. Attempting to sign in...")
                         auth.signInWithCredential(googleCredential)
                             .addOnCompleteListener { signInTask ->
+                                Log.d(TAG, "=== CASE 2 STEP 6: signInWithCredential completed")
                                 if (signInTask.isSuccessful) {
+                                    Log.d(TAG, "=== CASE 2 SUCCESS: Signed in with Google")
                                     val user = auth.currentUser ?: return@addOnCompleteListener
-                                    // Update Firestore to mark Google provider
+                                    Log.d(TAG, "=== CASE 2 STEP 7: Got current user, UID: ${user.uid}")
                                     updateProviderIfNeeded(user.uid, "google")
                                     handleSuccessfulLogin(true)
                                 }
-                                else showErrorAlert("Auth Failed", signInTask.exception?.localizedMessage ?: "Error")
+                                else {
+                                    val errorMsg = signInTask.exception?.message ?: "Unknown error"
+                                    Log.e(TAG, "=== CASE 2 FAILED at STEP 6: $errorMsg")
+                                    Log.e(TAG, "=== Exception type: ${signInTask.exception?.javaClass?.simpleName}")
+                                    runOnUiThread {
+                                        Toast.makeText(this@Login, "Case 2 Login failed: $errorMsg", Toast.LENGTH_LONG).show()
+                                        showErrorAlert("Auth Failed (Case 2)", errorMsg)
+                                    }
+                                }
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "=== CASE 2 FAILURE LISTENER: ${e.message}")
+                                Log.e(TAG, "Exception: ${e.javaClass.simpleName}")
+                                runOnUiThread {
+                                    Toast.makeText(this@Login, "Case 2 Error: ${e.message}", Toast.LENGTH_LONG).show()
+                                    showErrorAlert("Error (Case 2)", e.message ?: "Unknown error")
+                                }
                             }
                     }
 
                     // Case 3: Both exist - already linked, just sign in
                     hasEmailPassword && hasGoogle -> {
+                        Log.d(TAG, "=== CASE 3: Both email and Google exist. Attempting to sign in...")
                         auth.signInWithCredential(googleCredential)
                             .addOnCompleteListener { signInTask ->
+                                Log.d(TAG, "=== CASE 3 STEP 6: signInWithCredential completed")
                                 if (signInTask.isSuccessful) {
+                                    Log.d(TAG, "=== CASE 3 SUCCESS: Signed in with Google")
                                     val user = auth.currentUser ?: return@addOnCompleteListener
-                                    // Ensure provider is marked as both
+                                    Log.d(TAG, "=== CASE 3 STEP 7: Got current user, UID: ${user.uid}")
                                     updateProviderIfNeeded(user.uid, "email,google")
                                     handleSuccessfulLogin(true)
                                 }
-                                else showErrorAlert("Auth Failed", signInTask.exception?.localizedMessage ?: "Error")
+                                else {
+                                    val errorMsg = signInTask.exception?.message ?: "Unknown error"
+                                    Log.e(TAG, "=== CASE 3 FAILED at STEP 6: $errorMsg")
+                                    Log.e(TAG, "=== Exception type: ${signInTask.exception?.javaClass?.simpleName}")
+                                    runOnUiThread {
+                                        Toast.makeText(this@Login, "Case 3 Login failed: $errorMsg", Toast.LENGTH_LONG).show()
+                                        showErrorAlert("Auth Failed (Case 3)", errorMsg)
+                                    }
+                                }
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "=== CASE 3 FAILURE LISTENER: ${e.message}")
+                                Log.e(TAG, "Exception: ${e.javaClass.simpleName}")
+                                runOnUiThread {
+                                    Toast.makeText(this@Login, "Case 3 Error: ${e.message}", Toast.LENGTH_LONG).show()
+                                    showErrorAlert("Error (Case 3)", e.message ?: "Unknown error")
+                                }
                             }
                     }
 
                     // Case 4: Neither exist - new Google user
                     else -> {
+                        Log.d(TAG, "=== CASE 4: New Google user. Attempting to sign in...")
                         auth.signInWithCredential(googleCredential)
                             .addOnCompleteListener { signInTask ->
+                                Log.d(TAG, "=== CASE 4 STEP 6: signInWithCredential completed")
                                 if (signInTask.isSuccessful) {
+                                    Log.d(TAG, "=== CASE 4 SUCCESS: Signed in with Google")
                                     val user = auth.currentUser ?: return@addOnCompleteListener
+                                    Log.d(TAG, "=== CASE 4 STEP 7: Got current user, UID: ${user.uid}")
                                     checkUserAndRedirect(googleEmail, user)
                                 } else {
-                                    showErrorAlert("Auth Failed", signInTask.exception?.localizedMessage ?: "Error")
+                                    val errorMsg = signInTask.exception?.message ?: "Unknown error"
+                                    Log.e(TAG, "=== CASE 4 FAILED at STEP 6: $errorMsg")
+                                    Log.e(TAG, "=== Exception type: ${signInTask.exception?.javaClass?.simpleName}")
+                                    runOnUiThread {
+                                        Toast.makeText(this@Login, "Case 4 Login failed: $errorMsg", Toast.LENGTH_LONG).show()
+                                        showErrorAlert("Auth Failed (Case 4)", errorMsg)
+                                    }
+                                }
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "=== CASE 4 FAILURE LISTENER: ${e.message}")
+                                Log.e(TAG, "Exception: ${e.javaClass.simpleName}")
+                                runOnUiThread {
+                                    Toast.makeText(this@Login, "Case 4 Error: ${e.message}", Toast.LENGTH_LONG).show()
+                                    showErrorAlert("Error (Case 4)", e.message ?: "Unknown error")
                                 }
                             }
                     }
+                }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "=== ERROR at STEP 3 (Failure Listener): fetchSignInMethodsForEmail error: ${e.message}")
+                Log.e(TAG, "Exception: ${e.javaClass.simpleName}")
+                runOnUiThread {
+                    Toast.makeText(this@Login, "Verification error: ${e.message}", Toast.LENGTH_LONG).show()
+                    showErrorAlert("Verification Error", "Failed to check authentication methods: ${e.message}")
                 }
             }
     }
 
     /**
      * ✅ Helper: Updates Firestore provider field if needed
+     * IMPORTANT: MERGES providers instead of replacing to preserve all auth methods
      */
     private fun updateProviderIfNeeded(uid: String, newProvider: String) {
         db.collection("users").document(uid).get()
             .addOnSuccessListener { doc ->
                 if (doc.exists()) {
                     val currentProvider = doc.getString("provider") ?: ""
-                    if (currentProvider != newProvider) {
+                    
+                    // MERGE providers instead of replace
+                    // Split by comma, combine sets, sort, and rejoin
+                    val currentSet = if (currentProvider.isNotEmpty()) currentProvider.split(",").toSet() else emptySet()
+                    val newSet = newProvider.split(",").toSet()
+                    val mergedProviders = (currentSet + newSet).sorted().joinToString(",")
+                    
+                    // Only update if actually changed
+                    if (currentProvider != mergedProviders) {
+                        Log.d(TAG, "Updating provider from '$currentProvider' to '$mergedProviders'")
                         db.collection("users").document(uid)
-                            .update("provider", newProvider)
+                            .update("provider", mergedProviders)
                             .addOnFailureListener { e ->
-                                Log.w(TAG, "Failed to update provider: ${e.message}")
+                                Log.e(TAG, "Failed to update provider: ${e.message}")
                             }
                     }
                 }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to read user document: ${e.message}")
             }
     }
 
@@ -313,13 +451,10 @@ class Login : AppCompatActivity() {
             .addOnSuccessListener { document ->
                 if (document.exists()) {
                     val currentProvider = document.getString("provider") ?: ""
-                    // Ensure provider tracking is accurate
+                    // Ensure provider tracking is accurate by MERGING, not replacing
                     if (!currentProvider.contains("google")) {
-                        db.collection("users").document(user.uid)
-                            .update("provider", if (currentProvider.isEmpty()) "google" else "$currentProvider,google")
-                            .addOnFailureListener { e ->
-                                Log.w(TAG, "Failed to update provider: ${e.message}")
-                            }
+                        // Use updateProviderIfNeeded to properly merge
+                        updateProviderIfNeeded(user.uid, "google")
                     }
                     handleSuccessfulLogin(true)
                 } else {
@@ -338,6 +473,7 @@ class Login : AppCompatActivity() {
                         )
                         db.collection("users").document(user.uid).set(newUser)
                             .addOnSuccessListener { 
+                                Log.d(TAG, "New Google user created successfully")
                                 handleSuccessfulLogin(true)
                             }
                             .addOnFailureListener { e ->

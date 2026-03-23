@@ -218,8 +218,8 @@ class room_request : AppCompatActivity() {
         val currentMinute = calendar.get(Calendar.MINUTE)
 
         val slotEndTimes = listOf(
-            Pair(9, 0), Pair(10, 30), Pair(12, 0), Pair(13, 30),
-            Pair(15, 0), Pair(16, 30), Pair(18, 0)
+            Pair(8, 0), Pair(9, 30), Pair(11, 0), Pair(12, 30),
+            Pair(14, 0), Pair(15, 30), Pair(17, 0)
         )
 
         val (endHour, endMinute) = slotEndTimes[index]
