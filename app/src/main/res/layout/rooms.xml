@@ -206,7 +206,7 @@
         android:layout_above="@id/bottomNav"
         android:layout_below="@id/headerLayout"
         android:clipToPadding="false"
-        android:paddingBottom="16dp"
+        android:paddingBottom="80dp"
         tools:listitem="@layout/item_room" />
 
 </RelativeLayout>
