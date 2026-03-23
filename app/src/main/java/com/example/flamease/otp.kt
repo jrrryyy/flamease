@@ -41,6 +41,9 @@ class otp : AppCompatActivity() {
         val etOtp5 = findViewById<EditText>(R.id.etOtp5)
         val etOtp6 = findViewById<EditText>(R.id.etOtp6)
 
+        // Back button listener
+        findViewById<TextView>(R.id.btnBack).setOnClickListener { finish() }
+
         setupOtpAutoMove(etOtp1, etOtp2)
         setupOtpAutoMove(etOtp2, etOtp3)
         setupOtpAutoMove(etOtp3, etOtp4)
