@@ -53,7 +53,7 @@ class validation_otp : AppCompatActivity() {
         val etOtp5 = findViewById<EditText>(R.id.etOtp5)
         val etOtp6 = findViewById<EditText>(R.id.etOtp6)
         val btnConfirm = findViewById<Button>(R.id.btnConfirm)
-        findViewById<TextView>(R.id.etBack).setOnClickListener { finish() }
+        findViewById<TextView>(R.id.btnBack).setOnClickListener { finish() }
 
         val otpBoxes = arrayOf(etOtp1, etOtp2, etOtp3, etOtp4, etOtp5, etOtp6)
 

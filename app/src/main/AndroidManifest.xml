@@ -24,9 +24,7 @@
         <activity
             android:name=".validation_otp"
             android:exported="false" />
-        <activity
-            android:name=".otp"
-            android:exported="false" />
+
         <activity
             android:name=".help_support"
             android:exported="false" />
