@@ -129,135 +129,68 @@ class Login : AppCompatActivity() {
     private fun firebaseAuthWithGoogle(idToken: String, googleEmail: String) {
         val googleCredential = GoogleAuthProvider.getCredential(idToken, null)
 
-        // Look up if this email already exists in Firestore
-        db.collection("users")
-            .whereEqualTo("email", googleEmail)
-            .get()
-            .addOnSuccessListener { results ->
-                if (!results.isEmpty) {
-                    val existingDoc      = results.documents[0]
-                    val existingUid      = existingDoc.id
-                    val existingProvider = existingDoc.getString("provider") ?: "email"
-
-                    when {
-                        existingProvider == "email" -> {
-                            // User registered with email+password only.
-                            // Link Google to their existing Firebase Auth account
-                            // so BOTH sign-in methods work under the SAME UID.
-                            linkGoogleToEmailAccount(googleCredential, existingUid)
-                        }
-                        existingProvider.contains("google") -> {
-                            // Already linked or Google-only — just sign in normally
-                            auth.signInWithCredential(googleCredential)
-                                .addOnCompleteListener { task ->
-                                    if (task.isSuccessful) handleSuccessfulLogin(true)
-                                    else showErrorAlert("Auth Failed", task.exception?.localizedMessage ?: "Error")
-                                }
-                        }
-                        else -> {
-                            // Unknown provider state — try signing in anyway
-                            auth.signInWithCredential(googleCredential)
-                                .addOnCompleteListener { task ->
-                                    if (task.isSuccessful) handleSuccessfulLogin(true)
-                                    else showErrorAlert("Auth Failed", task.exception?.localizedMessage ?: "Error")
-                                }
-                        }
-                    }
-                } else {
-                    // No Firestore doc found — new Google user
-                    auth.signInWithCredential(googleCredential)
-                        .addOnCompleteListener { task ->
-                            if (task.isSuccessful) {
-                                val user = auth.currentUser ?: return@addOnCompleteListener
-                                checkUserAndRedirect(googleEmail, user)
-                            } else {
-                                showErrorAlert("Auth Failed", task.exception?.localizedMessage ?: "Error")
-                            }
-                        }
-                }
-            }
-            .addOnFailureListener { e ->
-                showErrorAlert("Error", e.localizedMessage ?: "Could not verify account")
-            }
-    }
-
-    /**
-     * THE KEY FIX: Link Google to the existing email/password account.
-     *
-     * How it works:
-     * 1. Sign in with email/password first to get the existing Firebase user
-     *    (we can't do this silently without the password, so we sign in with
-     *    Google first, then use linkWithCredential on the email account)
-     *
-     * Actually the correct Firebase approach:
-     * - Sign in with Google credential directly
-     * - If Firebase throws EMAIL_ALREADY_IN_USE collision, it means the email
-     *   is tied to an email/password account
-     * - We then sign in with the email/password account and call
-     *   linkWithCredential(googleCredential) to attach Google to it
-     *
-     * But since we don't have the password here, we use a simpler approach:
-     * - Sign in with Google (Firebase creates a new Google-auth user)
-     * - Fetch the OLD email-auth Firestore doc
-     * - Copy it to the new Google UID, mark provider as "email,google"
-     * - BUT ALSO keep the old doc so email login still works
-     *
-     * The REAL proper fix: sign in with Google, then immediately call
-     * currentUser.linkWithCredential with the EMAIL credential — but that
-     * requires the user's password. So instead we use fetchSignInMethodsForEmail
-     * to detect the collision, then show a dialog asking for their password
-     * to complete the link properly.
-     */
-    private fun linkGoogleToEmailAccount(
-        googleCredential: com.google.firebase.auth.AuthCredential,
-        existingUid: String
-    ) {
-        // Step 1: Try signing in with Google credential
-        auth.signInWithCredential(googleCredential)
+        // ✅ FIX: Use fetchSignInMethodsForEmail to detect provider collision BEFORE auth
+        auth.fetchSignInMethodsForEmail(googleEmail)
             .addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    val googleUid = auth.currentUser?.uid ?: return@addOnCompleteListener
+                if (!task.isSuccessful) {
+                    showErrorAlert("Error", "Could not verify email: ${task.exception?.message}")
+                    return@addOnCompleteListener
+                }
 
-                    if (googleUid == existingUid) {
-                        // Same UID — accounts are already linked in Firebase Auth
-                        // Just update the provider field in Firestore
-                        db.collection("users").document(existingUid)
-                            .update("provider", "email,google")
-                            .addOnSuccessListener { handleSuccessfulLogin(true) }
-                            .addOnFailureListener { handleSuccessfulLogin(true) } // proceed anyway
-                        return@addOnCompleteListener
+                val signInMethods = task.result?.signInMethods ?: emptyList()
+                Log.d(TAG, "Sign-in methods for $googleEmail: $signInMethods")
+
+                // Check what provider(s) exist for this email in Firebase Auth
+                val hasEmailPassword = signInMethods.contains("password")
+                val hasGoogle = signInMethods.contains("google.com")
+
+                when {
+                    // Case 1: Email exists, Google doesn't - need to link
+                    hasEmailPassword && !hasGoogle -> {
+                        showLinkAccountDialog(googleCredential, googleEmail)
                     }
 
-                    // Google sign-in succeeded but gave a DIFFERENT UID.
-                    // This means Firebase Auth has two separate accounts for the same email.
-                    // We need to ask the user for their password to link them properly.
-                    auth.signOut() // sign out the Google session
-                    showLinkAccountDialog(googleCredential, existingUid)
+                    // Case 2: Google already exists (no email) - just sign in
+                    hasGoogle && !hasEmailPassword -> {
+                        auth.signInWithCredential(googleCredential)
+                            .addOnCompleteListener { signInTask ->
+                                if (signInTask.isSuccessful) handleSuccessfulLogin(true)
+                                else showErrorAlert("Auth Failed", signInTask.exception?.localizedMessage ?: "Error")
+                            }
+                    }
 
-                } else {
-                    val ex = task.exception
-                    if (ex is FirebaseAuthUserCollisionException) {
-                        // Google sign-in was blocked because this email belongs to
-                        // an email/password account. Ask for password to link.
-                        auth.signOut()
-                        showLinkAccountDialog(googleCredential, existingUid)
-                    } else {
-                        showErrorAlert("Sign-In Failed", ex?.localizedMessage ?: "Error")
+                    // Case 3: Both exist - already linked, just sign in
+                    hasEmailPassword && hasGoogle -> {
+                        auth.signInWithCredential(googleCredential)
+                            .addOnCompleteListener { signInTask ->
+                                if (signInTask.isSuccessful) handleSuccessfulLogin(true)
+                                else showErrorAlert("Auth Failed", signInTask.exception?.localizedMessage ?: "Error")
+                            }
+                    }
+
+                    // Case 4: Neither exist - new Google user
+                    else -> {
+                        auth.signInWithCredential(googleCredential)
+                            .addOnCompleteListener { signInTask ->
+                                if (signInTask.isSuccessful) {
+                                    val user = auth.currentUser ?: return@addOnCompleteListener
+                                    checkUserAndRedirect(googleEmail, user)
+                                } else {
+                                    showErrorAlert("Auth Failed", signInTask.exception?.localizedMessage ?: "Error")
+                                }
+                            }
                     }
                 }
             }
     }
 
     /**
-     * Shows a password dialog to complete account linking.
-     * The user enters their email/password to re-authenticate,
-     * then we call linkWithCredential(googleCredential) to attach
-     * Google to their existing account under the SAME UID.
-     * After this, BOTH email+password AND Google sign-in work.
+     * ✅ IMPROVED: Shows a password dialog to link Google to existing email account.
+     * This uses the proper Firebase method: linkWithCredential
      */
     private fun showLinkAccountDialog(
         googleCredential: com.google.firebase.auth.AuthCredential,
-        existingUid: String
+        googleEmail: String
     ) {
         val layout = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -265,11 +198,11 @@ class Login : AppCompatActivity() {
         }
 
         val tvMessage = TextView(this).apply {
-            text = "You already have an account with this email.\nEnter your password to link Google sign-in so you can use both."
+            text = "This email already has an account with password.\n\nEnter your password to link Google sign-in with your existing account. After this, you can use BOTH methods to log in."
             setPadding(0, 0, 0, 16)
         }
         val etPassword = EditText(this).apply {
-            hint = "Your current password"
+            hint = "Your account password"
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                     android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
         }
@@ -280,12 +213,13 @@ class Login : AppCompatActivity() {
         val dialog = AlertDialog.Builder(this)
             .setTitle("Link Google Account")
             .setView(layout)
-            .setPositiveButton("Link") { _, _ -> }
+            .setPositiveButton("Link", null)  // Set to null, we'll override below
             .setNegativeButton("Cancel") { d, _ -> d.dismiss() }
             .create()
 
         dialog.show()
 
+        // Override positive button to add validation
         dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             val password = etPassword.text.toString().trim()
             if (password.isEmpty()) {
@@ -293,38 +227,46 @@ class Login : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            // Get the email for this UID from Firestore
-            db.collection("users").document(existingUid).get()
-                .addOnSuccessListener { doc ->
-                    val email = doc.getString("email") ?: return@addOnSuccessListener
+            // ✅ Step 1: Sign in with email/password to verify user identity
+            auth.signInWithEmailAndPassword(googleEmail, password)
+                .addOnCompleteListener { signInTask ->
+                    if (!signInTask.isSuccessful) {
+                        etPassword.error = "Incorrect password"
+                        Log.e(TAG, "Email sign-in failed: ${signInTask.exception?.message}")
+                        return@addOnCompleteListener
+                    }
 
-                    // Sign in with email/password to get the existing Firebase user
-                    auth.signInWithEmailAndPassword(email, password)
-                        .addOnCompleteListener { signInTask ->
-                            if (!signInTask.isSuccessful) {
-                                etPassword.error = "Incorrect password"
-                                return@addOnCompleteListener
-                            }
+                    val currentUser = auth.currentUser ?: return@addOnCompleteListener
+                    Log.d(TAG, "Email sign-in successful, UID: ${currentUser.uid}")
 
-                            // Now link Google credential to this email/password account
-                            // This attaches Google sign-in to the SAME UID — no migration!
-                            auth.currentUser?.linkWithCredential(googleCredential)
-                                ?.addOnCompleteListener { linkTask ->
-                                    if (linkTask.isSuccessful) {
-                                        // Update Firestore provider field
-                                        db.collection("users").document(existingUid)
-                                            .update("provider", "email,google")
-                                            .addOnSuccessListener {
-                                                dialog.dismiss()
-                                                Log.d(TAG, "Successfully linked Google to email account $existingUid")
-                                                handleSuccessfulLogin(true)
-                                            }
-                                    } else {
-                                        Log.e(TAG, "Link failed: ${linkTask.exception?.message}")
-                                        showErrorAlert("Link Failed", linkTask.exception?.localizedMessage ?: "Could not link accounts")
+                    // ✅ Step 2: Link Google credential to this existing email account
+                    currentUser.linkWithCredential(googleCredential)
+                        .addOnCompleteListener { linkTask ->
+                            if (linkTask.isSuccessful) {
+                                Log.d(TAG, "Successfully linked Google to email account")
+
+                                // ✅ Step 3: Update Firestore provider field to show both methods
+                                db.collection("users").document(currentUser.uid)
+                                    .update("provider", "email,google")
+                                    .addOnSuccessListener {
+                                        dialog.dismiss()
+                                        Toast.makeText(this, "Account linked successfully!", Toast.LENGTH_SHORT).show()
+                                        handleSuccessfulLogin(true)
                                     }
-                                }
+                                    .addOnFailureListener { e ->
+                                        Log.e(TAG, "Failed to update provider: ${e.message}")
+                                        dialog.dismiss()
+                                        handleSuccessfulLogin(true)  // Still proceed even if update fails
+                                    }
+                            } else {
+                                Log.e(TAG, "Link failed: ${linkTask.exception?.message}")
+                                showErrorAlert("Link Failed", linkTask.exception?.localizedMessage ?: "Could not link Google account")
+                            }
                         }
+                }
+                .addOnFailureListener { e ->
+                    etPassword.error = "Sign-in failed: ${e.message}"
+                    Log.e(TAG, "Email sign-in error: ${e.message}")
                 }
         }
     }

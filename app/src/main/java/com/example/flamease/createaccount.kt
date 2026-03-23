@@ -210,14 +210,70 @@ class createaccount : AppCompatActivity() {
 
     private fun firebaseAuthWithGoogle(idToken: String, email: String) {
         val credential = GoogleAuthProvider.getCredential(idToken, null)
-        auth.signInWithCredential(credential).addOnCompleteListener { task ->
-            if (task.isSuccessful) {
-                val user = auth.currentUser
-                if (user != null) checkUserAndRedirect(email, user)
-            } else {
-                showErrorAlert("Auth Failed", task.exception?.message ?: "Unknown error")
+        
+        // ✅ FIX: Check if email already has an account with email/password
+        val auth = FirebaseAuth.getInstance()
+        auth.fetchSignInMethodsForEmail(email)
+            .addOnCompleteListener { task ->
+                if (!task.isSuccessful) {
+                    showErrorAlert("Error", "Could not verify email")
+                    return@addOnCompleteListener
+                }
+
+                val signInMethods = task.result?.signInMethods ?: emptyList()
+                Log.d(TAG, "Sign-in methods for $email: $signInMethods")
+
+                val hasEmailPassword = signInMethods.contains("password")
+                val hasGoogle = signInMethods.contains("google.com")
+
+                when {
+                    // Case 1: Email account exists, user trying Google Sign-Up
+                    // Should redirect to Login to properly link
+                    hasEmailPassword && !hasGoogle -> {
+                        showErrorAlert(
+                            "Account Exists",
+                            "This email already has an account. Please log in and link Google Sign-In from the Login screen."
+                        )
+                        auth.signOut()
+                    }
+
+                    // Case 2: Google account exists, just sign in
+                    hasGoogle && !hasEmailPassword -> {
+                        auth.signInWithCredential(credential).addOnCompleteListener { signInTask ->
+                            if (signInTask.isSuccessful) {
+                                val user = auth.currentUser
+                                if (user != null) checkUserAndRedirect(email, user)
+                            } else {
+                                showErrorAlert("Auth Failed", signInTask.exception?.message ?: "Unknown error")
+                            }
+                        }
+                    }
+
+                    // Case 3: Both exist - already linked
+                    hasEmailPassword && hasGoogle -> {
+                        auth.signInWithCredential(credential).addOnCompleteListener { signInTask ->
+                            if (signInTask.isSuccessful) {
+                                val user = auth.currentUser
+                                if (user != null) checkUserAndRedirect(email, user)
+                            } else {
+                                showErrorAlert("Auth Failed", signInTask.exception?.message ?: "Unknown error")
+                            }
+                        }
+                    }
+
+                    // Case 4: New Google user - proceed with registration
+                    else -> {
+                        auth.signInWithCredential(credential).addOnCompleteListener { signInTask ->
+                            if (signInTask.isSuccessful) {
+                                val user = auth.currentUser
+                                if (user != null) checkUserAndRedirect(email, user)
+                            } else {
+                                showErrorAlert("Auth Failed", signInTask.exception?.message ?: "Unknown error")
+                            }
+                        }
+                    }
+                }
             }
-        }
     }
 
     private fun checkUserAndRedirect(email: String, user: com.google.firebase.auth.FirebaseUser) {
