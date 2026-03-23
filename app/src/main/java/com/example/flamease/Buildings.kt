@@ -23,6 +23,12 @@ class Buildings : AppCompatActivity() {
     private lateinit var spinnerBuildings: Spinner
     private lateinit var spinnerAdapter: ArrayAdapter<String>
 
+    override fun onResume() {
+        super.onResume()
+        // ✅ Update badge count whenever user returns to this activity
+        BadgeManager.updateBadgeCount(this, R.id.tvNotifBadge)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

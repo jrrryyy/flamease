@@ -30,6 +30,12 @@ class notifications : AppCompatActivity() {
     private lateinit var tvNotifBadge: TextView
     private var activeDialog: AlertDialog? = null
 
+    override fun onResume() {
+        super.onResume()
+        // ✅ Update badge count whenever user returns to this activity
+        BadgeManager.updateBadgeCount(this, R.id.tvNotifBadge)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

@@ -38,6 +38,12 @@ class faculty : AppCompatActivity() {
     private val masterRequestList = arrayListOf<RequestData>()
     private val CHANNEL_ID = "flamease_notifications"
 
+    override fun onResume() {
+        super.onResume()
+        // ✅ Update badge count whenever user returns to this activity
+        BadgeManager.updateBadgeCount(this, R.id.tvNotifBadge)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)

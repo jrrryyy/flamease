@@ -21,6 +21,12 @@ class request : AppCompatActivity() {
     private lateinit var rvAllRequests: RecyclerView
     private val requestList = arrayListOf<RequestData>()
 
+    override fun onResume() {
+        super.onResume()
+        // ✅ Update badge count whenever user returns to this activity
+        BadgeManager.updateBadgeCount(this, R.id.tvNotifBadge)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()

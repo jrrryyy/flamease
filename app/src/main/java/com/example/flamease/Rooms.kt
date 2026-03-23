@@ -19,6 +19,12 @@ class Rooms : AppCompatActivity() {
     // Corrected: Uses RoomData instead of a Map to fix the adapter error
     private val roomList = arrayListOf<RoomData>()
 
+    override fun onResume() {
+        super.onResume()
+        // ✅ Update badge count whenever user returns to this activity
+        BadgeManager.updateBadgeCount(this, R.id.tvNotifBadge)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.rooms)
