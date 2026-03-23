@@ -41,8 +41,7 @@ class onboarding1 : AppCompatActivity() {
         // Navigation to onboarding2
         findViewById<Button>(R.id.btnNext).setOnClickListener {
             startActivity(Intent(this, onboarding2::class.java))
-            // Uses standard Android slide-in from right, slide-out to left
-            overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left)
         }
 
         // Navigation to create account

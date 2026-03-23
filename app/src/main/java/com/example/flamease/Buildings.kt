@@ -57,16 +57,20 @@ class Buildings : AppCompatActivity() {
         // Bottom Navigation
         findViewById<LinearLayout>(R.id.btnHome).setOnClickListener {
             startActivity(Intent(this, faculty::class.java))
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
             finish()
         }
         findViewById<LinearLayout>(R.id.btnRequest).setOnClickListener {
             startActivity(Intent(this, request::class.java))
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<LinearLayout>(R.id.btnSettings).setOnClickListener {
             startActivity(Intent(this, Settings::class.java))
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<LinearLayout>(R.id.notification).setOnClickListener {
             startActivity(Intent(this, notifications::class.java))
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<TextView>(R.id.btnBack).setOnClickListener {
             finish()

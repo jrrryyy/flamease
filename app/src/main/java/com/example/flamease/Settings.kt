@@ -70,21 +70,21 @@ class Settings : AppCompatActivity() {
             val intent = Intent(this, faculty::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             startActivity(intent)
-            overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
 
         findViewById<LinearLayout>(R.id.btnRequest).setOnClickListener {
             val intent = Intent(this, request::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             startActivity(intent)
-            overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
 
         findViewById<LinearLayout>(R.id.notification).setOnClickListener {
             val intent = Intent(this, notifications::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             startActivity(intent)
-            overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
 
         findViewById<LinearLayout>(R.id.btnPrivacy).setOnClickListener {

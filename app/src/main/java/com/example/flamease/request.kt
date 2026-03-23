@@ -90,12 +90,15 @@ class request : AppCompatActivity() {
     private fun setupNavigation() {
         findViewById<LinearLayout>(R.id.home).setOnClickListener {
             startActivity(Intent(this, faculty::class.java))
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<LinearLayout>(R.id.notification).setOnClickListener {
             startActivity(Intent(this, notifications::class.java))
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<LinearLayout>(R.id.settings).setOnClickListener {
             startActivity(Intent(this, Settings::class.java))
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
     }
 }

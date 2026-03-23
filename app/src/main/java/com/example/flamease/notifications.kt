@@ -94,13 +94,13 @@ class notifications : AppCompatActivity() {
             val intent = Intent(this, request::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             startActivity(intent)
-            overridePendingTransition(android.R.anim.slide_in_left, android.R.anim.slide_out_right)
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
         findViewById<LinearLayout>(R.id.settings).setOnClickListener {
             val intent = Intent(this, Settings::class.java)
             intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
             startActivity(intent)
-            overridePendingTransition(R.anim.slide_in_left, R.anim.slide_out_right)
+            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
         }
     }
 
