@@ -154,7 +154,12 @@ class Login : AppCompatActivity() {
                     hasGoogle && !hasEmailPassword -> {
                         auth.signInWithCredential(googleCredential)
                             .addOnCompleteListener { signInTask ->
-                                if (signInTask.isSuccessful) handleSuccessfulLogin(true)
+                                if (signInTask.isSuccessful) {
+                                    val user = auth.currentUser ?: return@addOnCompleteListener
+                                    // Update Firestore to mark Google provider
+                                    updateProviderIfNeeded(user.uid, "google")
+                                    handleSuccessfulLogin(true)
+                                }
                                 else showErrorAlert("Auth Failed", signInTask.exception?.localizedMessage ?: "Error")
                             }
                     }
@@ -163,7 +168,12 @@ class Login : AppCompatActivity() {
                     hasEmailPassword && hasGoogle -> {
                         auth.signInWithCredential(googleCredential)
                             .addOnCompleteListener { signInTask ->
-                                if (signInTask.isSuccessful) handleSuccessfulLogin(true)
+                                if (signInTask.isSuccessful) {
+                                    val user = auth.currentUser ?: return@addOnCompleteListener
+                                    // Ensure provider is marked as both
+                                    updateProviderIfNeeded(user.uid, "email,google")
+                                    handleSuccessfulLogin(true)
+                                }
                                 else showErrorAlert("Auth Failed", signInTask.exception?.localizedMessage ?: "Error")
                             }
                     }
@@ -178,6 +188,25 @@ class Login : AppCompatActivity() {
                                 } else {
                                     showErrorAlert("Auth Failed", signInTask.exception?.localizedMessage ?: "Error")
                                 }
+                            }
+                    }
+                }
+            }
+    }
+
+    /**
+     * ✅ Helper: Updates Firestore provider field if needed
+     */
+    private fun updateProviderIfNeeded(uid: String, newProvider: String) {
+        db.collection("users").document(uid).get()
+            .addOnSuccessListener { doc ->
+                if (doc.exists()) {
+                    val currentProvider = doc.getString("provider") ?: ""
+                    if (currentProvider != newProvider) {
+                        db.collection("users").document(uid)
+                            .update("provider", newProvider)
+                            .addOnFailureListener { e ->
+                                Log.w(TAG, "Failed to update provider: ${e.message}")
                             }
                     }
                 }
@@ -240,27 +269,35 @@ class Login : AppCompatActivity() {
                     Log.d(TAG, "Email sign-in successful, UID: ${currentUser.uid}")
 
                     // ✅ Step 2: Link Google credential to this existing email account
+                    // IMPORTANT: This preserves the password method while adding Google
                     currentUser.linkWithCredential(googleCredential)
                         .addOnCompleteListener { linkTask ->
                             if (linkTask.isSuccessful) {
                                 Log.d(TAG, "Successfully linked Google to email account")
 
                                 // ✅ Step 3: Update Firestore provider field to show both methods
+                                // Password is ALWAYS preserved in Firebase Auth - no action needed
                                 db.collection("users").document(currentUser.uid)
                                     .update("provider", "email,google")
                                     .addOnSuccessListener {
                                         dialog.dismiss()
-                                        Toast.makeText(this, "Account linked successfully!", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(this, "Account linked successfully! You can now use both email/password and Google to sign in.", Toast.LENGTH_SHORT).show()
                                         handleSuccessfulLogin(true)
                                     }
                                     .addOnFailureListener { e ->
                                         Log.e(TAG, "Failed to update provider: ${e.message}")
                                         dialog.dismiss()
-                                        handleSuccessfulLogin(true)  // Still proceed even if update fails
+                                        // Still proceed even if Firestore update fails - auth linkage is what matters
+                                        handleSuccessfulLogin(true)
                                     }
                             } else {
                                 Log.e(TAG, "Link failed: ${linkTask.exception?.message}")
-                                showErrorAlert("Link Failed", linkTask.exception?.localizedMessage ?: "Could not link Google account")
+                                // Common error: email-already-in-use means Google credential is already linked to another account
+                                if (linkTask.exception?.message?.contains("email-already-in-use", ignoreCase = true) == true) {
+                                    showErrorAlert("Link Failed", "This Google account is already linked to another email address.")
+                                } else {
+                                    showErrorAlert("Link Failed", linkTask.exception?.localizedMessage ?: "Could not link Google account")
+                                }
                             }
                         }
                 }
@@ -276,13 +313,17 @@ class Login : AppCompatActivity() {
             .addOnSuccessListener { document ->
                 if (document.exists()) {
                     val currentProvider = document.getString("provider") ?: ""
+                    // Ensure provider tracking is accurate
                     if (!currentProvider.contains("google")) {
                         db.collection("users").document(user.uid)
                             .update("provider", if (currentProvider.isEmpty()) "google" else "$currentProvider,google")
+                            .addOnFailureListener { e ->
+                                Log.w(TAG, "Failed to update provider: ${e.message}")
+                            }
                     }
                     handleSuccessfulLogin(true)
                 } else {
-                    // Brand new Google user
+                    // Brand new Google user - show registration details dialog
                     showRegistrationDetailsDialog { selectedRole, enteredId ->
                         val firstName = user.displayName?.split(" ")?.firstOrNull() ?: ""
                         val lastName  = user.displayName?.split(" ")?.drop(1)?.joinToString(" ") ?: ""
@@ -296,9 +337,19 @@ class Login : AppCompatActivity() {
                             "provider"  to "google"
                         )
                         db.collection("users").document(user.uid).set(newUser)
-                            .addOnSuccessListener { handleSuccessfulLogin(true) }
+                            .addOnSuccessListener { 
+                                handleSuccessfulLogin(true)
+                            }
+                            .addOnFailureListener { e ->
+                                Log.e(TAG, "Failed to create user document: ${e.message}")
+                                showErrorAlert("Error", "Could not create account. Please try again.")
+                            }
                     }
                 }
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed to check user: ${e.message}")
+                showErrorAlert("Error", "Could not verify account. Please try again.")
             }
     }
 
