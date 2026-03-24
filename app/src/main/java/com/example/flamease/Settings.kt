@@ -14,15 +14,22 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
 
 class Settings : AppCompatActivity() {
 
     private val db = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
+
+    // We keep a reference to the listener so we can kill it manually if needed
+    private var profileListener: ListenerRegistration? = null
 
     override fun onResume() {
         super.onResume()
-        // ✅ Update badge count whenever user returns to this activity
-        BadgeManager.updateBadgeCount(this, R.id.tvNotifBadge)
+        // ✅ Only trigger if user is actually logged in
+        if (auth.currentUser != null) {
+            BadgeManager.updateBadgeCount(this, R.id.tvNotifBadge)
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,7 +37,6 @@ class Settings : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_settings)
 
-        val auth = FirebaseAuth.getInstance()
         val userId = auth.currentUser?.uid
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
@@ -43,11 +49,18 @@ class Settings : AppCompatActivity() {
         val txtSettingsRole = findViewById<TextView>(R.id.Settings_roles)
         val txtStudentId = findViewById<TextView>(R.id.txtStudentId)
 
-        // Fetch User Data from Firestore
+        // --- Fetch User Data Safely ---
         if (userId != null) {
-            db.collection("users").document(userId).get()
-                .addOnSuccessListener { document ->
-                    if (document.exists()) {
+            // Using a ListenerRegistration allows us to stop the request immediately on logout
+            val docRef = db.collection("users").document(userId)
+
+            docRef.get().addOnCompleteListener { task ->
+                // ✅ CRITICAL: Check if activity is finishing or user logged out before processing
+                if (isFinishing || isDestroyed || auth.currentUser == null) return@addOnCompleteListener
+
+                if (task.isSuccessful) {
+                    val document = task.result
+                    if (document != null && document.exists()) {
                         val fName = document.getString("firstName") ?: ""
                         val lName = document.getString("lastName") ?: ""
                         val role = document.getString("role") ?: ""
@@ -57,69 +70,46 @@ class Settings : AppCompatActivity() {
                         txtSettingsRole.text = role
                         txtStudentId.text = idNum
                     }
+                } else {
+                    // Only show error if we didn't just log out
+                    if (auth.currentUser != null) {
+                        Toast.makeText(this, "Error loading profile", Toast.LENGTH_SHORT).show()
+                    }
                 }
-                .addOnFailureListener {
-                    Toast.makeText(this, "Failed to load profile", Toast.LENGTH_SHORT).show()
-                }
+            }
         }
 
-        // Navigation
-        findViewById<TextView>(R.id.btnBack).setOnClickListener {
-            val intent = Intent(this, faculty::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            startActivity(intent)
-            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
-        }
-
-        findViewById<LinearLayout>(R.id.home).setOnClickListener {
-            val intent = Intent(this, faculty::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            startActivity(intent)
-            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
-        }
+        // --- Navigation ---
+        findViewById<TextView>(R.id.btnBack).setOnClickListener { navigateToFaculty() }
+        findViewById<LinearLayout>(R.id.home).setOnClickListener { navigateToFaculty() }
 
         findViewById<LinearLayout>(R.id.btnRequest).setOnClickListener {
-            val intent = Intent(this, request::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            startActivity(intent)
-            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
+            startActivity(Intent(this, request::class.java))
         }
 
         findViewById<LinearLayout>(R.id.notification).setOnClickListener {
-            val intent = Intent(this, notifications::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
-            startActivity(intent)
-            overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
+            startActivity(Intent(this, notifications::class.java))
         }
 
-        findViewById<LinearLayout>(R.id.btnPrivacy).setOnClickListener {
-            startActivity(Intent(this, privacy_policy::class.java))
-        }
-
-        findViewById<LinearLayout>(R.id.btnHelp).setOnClickListener {
-            startActivity(Intent(this, help_support::class.java))
-        }
-
-        // Updated Logout Logic with Confirmation Message
         findViewById<Button>(R.id.btnLogout).setOnClickListener {
-            showLogoutConfirmation(auth)
+            showLogoutConfirmation()
         }
     }
 
-    private fun showLogoutConfirmation(auth: FirebaseAuth) {
+    private fun navigateToFaculty() {
+        val intent = Intent(this, faculty::class.java)
+        intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+        startActivity(intent)
+        finish()
+    }
+
+    private fun showLogoutConfirmation() {
         AlertDialog.Builder(this)
             .setTitle("Logout")
             .setMessage("Are you sure you want to log out?")
+            .setCancelable(false) // Force them to choose
             .setPositiveButton("Logout") { _, _ ->
-                // Perform Logout logic
-                auth.signOut()
-                val sharedPrefs = getSharedPreferences("FlameEasePrefs", Context.MODE_PRIVATE)
-                sharedPrefs.edit().clear().apply()
-
-                val intent = Intent(this, Login::class.java)
-                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                startActivity(intent)
-                finish()
+                performLogout()
             }
             .setNegativeButton("Cancel") { dialog, _ ->
                 dialog.dismiss()
@@ -127,10 +117,25 @@ class Settings : AppCompatActivity() {
             .show()
     }
 
-    override fun onBackPressed() {
-        val intent = Intent(this, faculty::class.java)
-        intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+    private fun performLogout() {
+        // 1. Clear SharedPreferences
+        val sharedPrefs = getSharedPreferences("FlameEasePrefs", Context.MODE_PRIVATE)
+        sharedPrefs.edit().clear().apply()
+
+        // 2. Sign out from Firebase
+        auth.signOut()
+
+        // 3. Clear Activity Stack and move to Login
+        val intent = Intent(this, Login::class.java)
+        // This ensures NO other activities stay open in the background
+        intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
-        overridePendingTransition(R.anim.fade_in, R.anim.fade_out)
+
+        // 4. "Nuclear Option": Kill this activity and all others in the task immediately
+        finishAffinity()
+    }
+
+    override fun onBackPressed() {
+        navigateToFaculty()
     }
 }
