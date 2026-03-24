@@ -257,19 +257,31 @@ class room_request : AppCompatActivity() {
             val block = etBlock.text.toString().trim()
             val description = etDesc.text.toString().trim()
 
-            if (block.isEmpty() || description.isEmpty()) {
-                Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
-            } else {
-                btnSubmit.isEnabled = false
-                btnSubmit.text = "Sending..."
-                submitRequestWithAccountInfo(building, room, slotIndex, block, description, alertDialog)
+            // --- VALIDATION LOGIC ---
+            when {
+                block.isEmpty() || description.isEmpty() -> {
+                    Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                }
+                block.length > 16 -> {
+                    etBlock.error = "Maximum length is 16 characters"
+                    Toast.makeText(this, "Block info is too long", Toast.LENGTH_SHORT).show()
+                }
+                !block.contains("-") -> {
+                    etBlock.error = "Must include a hyphen (e.g., BSIT-09)"
+                    Toast.makeText(this, "Invalid Format: Use a hyphen (-)", Toast.LENGTH_SHORT).show()
+                }
+                else -> {
+                    // All validations passed
+                    btnSubmit.isEnabled = false
+                    btnSubmit.text = "Sending..."
+                    submitRequestWithAccountInfo(building, room, slotIndex, block, description, alertDialog)
+                }
             }
         }
 
         btnCancel.setOnClickListener { alertDialog.dismiss() }
         alertDialog.show()
     }
-
     /**
      * CRITICAL FIX: Save bookingDate as today's date (midnight timestamp)
      * This allows daily bookings - same room can be booked again tomorrow
